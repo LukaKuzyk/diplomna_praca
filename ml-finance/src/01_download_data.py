@@ -26,8 +26,8 @@ def is_file_fresh(filepath: str, max_age_days: int = 1, use_static_data: bool = 
     return file_time > cutoff_time
 
 
-def download_aapl_data(ticker: str, years: int) -> pd.DataFrame:
-    """Download AAPL data from yfinance"""
+def download_stock_data(ticker: str, years: int) -> pd.DataFrame:
+    """Download stock data from yfinance"""
     logging.info(f"Downloading {ticker} data for {years} years...")
 
     # Download data
@@ -43,12 +43,12 @@ def download_aapl_data(ticker: str, years: int) -> pd.DataFrame:
     if len(df) < initial_len:
         logging.info(f"Removed {initial_len - len(df)} duplicate dates")
 
-    logging.info(f"Downloaded {len(df)} data points")
+    logging.info(f"Downloaded {len(df)} data points for {ticker}")
     return df
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create target features: close, log_ret, rv_5"""
+    """Create target features: close, log_ret, rv_5, us10y_change"""
     logging.info("Creating features...")
 
     # Ensure we have the required columns
@@ -69,9 +69,17 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     # Realized volatility: sqrt( (log_ret.rolling(5).var()) * 252 )
     df_features['rv_5'] = np.sqrt(df_features['log_ret'].rolling(5).var() * 252)
 
-    # Remove NA values (after feature calculation)
+    # US10Y change (if available)
+    if 'us10y' in df_features.columns:
+        df_features['us10y_change'] = df_features['us10y'].pct_change(fill_method=None)
+        df_features['us10y_change'] = df_features['us10y_change'].fillna(0)  # Fill first NaN with 0
+    else:
+        logging.warning("us10y column not found, setting us10y_change to 0")
+        df_features['us10y_change'] = 0.0
+
+    # Remove NA values (after feature calculation), drop only if essential features are NaN
     initial_rows = len(df_features)
-    df_features = df_features.dropna()
+    df_features = df_features.dropna(subset=['close', 'log_ret', 'rv_5'])
 
     logging.info(f"Removed {initial_rows - len(df_features)} rows with NA values")
     logging.info(f"Final dataset: {len(df_features)} rows")
@@ -106,7 +114,18 @@ def main():
         df.index = pd.to_datetime(df.index, utc=True)
     else:
         logging.info(f"Static data file {raw_data_path} not found, downloading...")
-        df = download_aapl_data(args.ticker, args.years)
+        # Download AAPL data
+        df_aapl = download_stock_data(args.ticker, args.years)
+
+        # Download US10Y data (^TNX is 10-year Treasury yield)
+        df_us10y = download_stock_data('^TNX', args.years)
+        df_us10y = df_us10y.rename(columns={'Close': 'us10y'})
+
+        # Merge on date index, keep all AAPL dates
+        df = pd.merge(df_aapl, df_us10y[['us10y']], left_index=True, right_index=True, how='left')
+
+        # Forward fill US10Y values for non-trading days
+        df['us10y'] = df['us10y'].fillna(method='ffill')
 
         # Save raw data
         os.makedirs(os.path.dirname(raw_data_path), exist_ok=True)

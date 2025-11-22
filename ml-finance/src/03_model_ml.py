@@ -53,9 +53,21 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
 
     # Volume features
-    # features_df['volume'] = df['Volume']
-    # for lag in [1, 2, 5]:
-    #     features_df[f'volume_lag_{lag}'] = features_df['volume'].shift(lag)
+    features_df['volume'] = df['Volume']
+    for lag in [1, 2, 5]:
+        features_df[f'volume_lag_{lag}'] = features_df['volume'].shift(lag)
+
+    # Rolling statistics
+    features_df['rolling_skew_20'] = features_df['log_ret'].rolling(20).skew()
+    features_df['rolling_kurt_20'] = features_df['log_ret'].rolling(20).kurt()
+
+    # US10Y rate change (assuming it's in df, or placeholder)
+    # If not available, this will be NaN
+    if 'us10y' in df.columns:
+        features_df['us10y_change'] = df['us10y'].pct_change()
+    else:
+        # Placeholder, set to 0 or some value
+        features_df['us10y_change'] = 0.0
 
     # Technical indicators
     # SMA(5) and SMA(20)
@@ -129,9 +141,9 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
     # XGBoost (if available)
     if XGBOOST_AVAILABLE:
         models['xgb'] = (XGBRegressor(
-            n_estimators=500,
-            max_depth=6,
-            learning_rate=0.03,
+            n_estimators=300,
+            max_depth=5,
+            learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=random_state
@@ -141,7 +153,7 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
         logging.warning("XGBoost not available, skipping XGBoost model")
 
     # Support Vector Regressor
-    models['svr'] = (SVR(kernel='rbf', C=1.0, epsilon=0.1), StandardScaler())
+    # models['svr'] = (SVR(kernel='rbf', C=1.0, epsilon=0.1), StandardScaler())
 
     # Gradient Boosting Regressor
     models['gbr'] = (GradientBoostingRegressor(n_estimators=200, max_depth=5, learning_rate=0.1, random_state=random_state), StandardScaler())
@@ -164,13 +176,15 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
     # Define feature columns (exclude target and other non-feature columns)
     feature_cols = [
         'log_ret_lag_1',
-        #'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5',
+        # 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5',
         'log_ret_lag_7',
         # 'log_ret_lag_10',
         'log_ret_lag_14',
         # 'log_ret_lag_15', 'log_ret_lag_20',
         'log_ret_lag_21', 'log_ret_lag_30',
         # 'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
+        # 'rolling_skew_20', 'rolling_kurt_20',
+        # 'us10y_change',
         'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
         'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
         'day_of_week', 'month'
@@ -237,7 +251,8 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
 
             ml_da = directional_accuracy(
                 results_df.loc[mask, 'y_true'],
-                results_df.loc[mask, pred_col]
+                results_df.loc[mask, pred_col],
+                threshold=0.0003
             )
 
             ml_metrics['Directional_Accuracy'] = ml_da
@@ -255,10 +270,10 @@ def main():
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
     parser.add_argument('--train_window', type=int, default=252,
                        help='Training window size (default: 252 ~1 year)')
-    parser.add_argument('--test_window', type=int, default=252,
-                       help='Test window size (default: 252 ~1 year)')
-    parser.add_argument('--step', type=int, default=126,
-                       help='Step size for walk-forward (default: 126 ~6 months)')
+    parser.add_argument('--test_window', type=int, default=30,
+                       help='Test window size (default: 30 ~1 month)')
+    parser.add_argument('--step', type=int, default=30,
+                       help='Step size for walk-forward (default: 30 ~1 month)')
 
     args = parser.parse_args()
 

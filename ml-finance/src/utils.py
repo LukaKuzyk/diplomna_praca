@@ -60,18 +60,29 @@ def evaluate_regression(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, flo
     }
 
 
-def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Calculate directional accuracy (sign hit-rate)"""
+def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray, threshold: float = 0.0) -> float:
+    """Calculate directional accuracy (sign hit-rate) with optional threshold"""
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    # Calculate signs
-    true_direction = np.sign(y_true)
-    pred_direction = np.sign(y_pred)
+    # Apply threshold to predictions
+    if threshold > 0:
+        pred_direction = np.where(y_pred > threshold, 1,
+                                  np.where(y_pred < -threshold, -1, 0))
+    else:
+        pred_direction = np.sign(y_pred)
 
-    # Calculate accuracy (ignore zeros)
-    correct = np.sum((true_direction == pred_direction) & (true_direction != 0))
-    total = np.sum(true_direction != 0)
+    # Calculate true directions
+    true_direction = np.sign(y_true)
+
+    # Calculate accuracy (ignore zeros in predictions and true where pred is 0)
+    # For pred_direction == 0, we consider it as no signal, so skip those days
+    mask = (pred_direction != 0) & (true_direction != 0)
+    if np.sum(mask) == 0:
+        return 0.0
+
+    correct = np.sum((true_direction == pred_direction) & mask)
+    total = np.sum(mask)
 
     return correct / total if total > 0 else 0.0
 

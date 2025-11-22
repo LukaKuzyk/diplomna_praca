@@ -112,8 +112,11 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     if len(data) == 0:
         return {'error': 'No aligned data for strategy'}
 
-    # Generate positions based on ML predictions
-    positions = np.sign(data['ml_pred'])
+    # Generate positions based on ML predictions with threshold
+    threshold = 0.0003
+    positions = np.where(data['ml_pred'] > threshold, 1,
+                        np.where(data['ml_pred'] < -threshold, -1, 0))
+    positions = pd.Series(positions, index=data.index)
 
     # Calculate strategy returns (without leverage)
     strategy_returns = positions.shift(1) * data['returns']  # Shift because we use previous day's signal
@@ -306,7 +309,10 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures')
                         'ml_pred': plot_data[ml_pred_col]
                     }).dropna()
 
-                    positions = np.sign(data_strategy['ml_pred'])
+                    threshold = 0.0003
+                    positions = np.where(data_strategy['ml_pred'] > threshold, 1,
+                                        np.where(data_strategy['ml_pred'] < -threshold, -1, 0))
+                    positions = pd.Series(positions, index=data_strategy.index)
                     strategy_returns = positions.shift(1) * data_strategy['returns']
                     strategy_returns = strategy_returns.dropna()
 
@@ -381,7 +387,8 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
             )
             arima_ret_metrics['Directional_Accuracy'] = directional_accuracy(
                 combined_df.loc[mask, 'log_ret'],
-                combined_df.loc[mask, col]
+                combined_df.loc[mask, col],
+                threshold=0.0003
             )
             metrics['ARIMA_Returns'] = arima_ret_metrics
 
@@ -397,7 +404,8 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
             )
             ml_metrics['Directional_Accuracy'] = directional_accuracy(
                 combined_df.loc[mask, 'log_ret'],
-                combined_df.loc[mask, col]
+                combined_df.loc[mask, col],
+                threshold=0.0003
             )
             metrics[f'ML_{model_name}_Returns'] = ml_metrics
 
