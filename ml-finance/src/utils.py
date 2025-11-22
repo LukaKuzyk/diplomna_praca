@@ -22,7 +22,7 @@ def date_utc_index(df: pd.DataFrame, col: str = "Date") -> pd.DataFrame:
     """Convert date column to UTC datetime index"""
     df = df.copy()
     if col in df.columns:
-        df[col] = pd.to_datetime(df[col])
+        df[col] = pd.to_datetime(df[col], utc=True)
         df[col] = df[col].dt.tz_localize('UTC')
         df.set_index(col, inplace=True)
     return df

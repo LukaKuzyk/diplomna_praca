@@ -209,7 +209,7 @@ def predict_next_day() -> Dict[str, any]:
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
     df = pd.read_csv(data_path, index_col=0)
-    df.index = pd.to_datetime(df.index)
+    df.index = pd.to_datetime(df.index, utc=True)
 
     # Create features
     df_features = create_features(df)

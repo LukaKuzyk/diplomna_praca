@@ -4,6 +4,7 @@ ML models for AAPL log-return forecasting: XGBoost/RandomForest
 """
 import argparse
 import logging
+import os
 import warnings
 from typing import Dict, List, Tuple, Optional
 import numpy as np
@@ -130,9 +131,9 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
     logging.info("Starting ML walk-forward validation")
 
     # Load data
-    data_path = 'data/aapl_features.csv'
+    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv')
     df = pd.read_csv(data_path, index_col=0)
-    df.index = pd.to_datetime(df.index)
+    df.index = pd.to_datetime(df.index, utc=True)
 
     # Create features
     df_features = create_features(df)
@@ -216,8 +217,8 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
-    parser.add_argument('--train_window', type=int, default=1260,
-                       help='Training window size (default: 1260 ~5 years)')
+    parser.add_argument('--train_window', type=int, default=504,
+                       help='Training window size (default: 504 ~2 years)')
     parser.add_argument('--test_window', type=int, default=252,
                        help='Test window size (default: 252 ~1 year)')
     parser.add_argument('--step', type=int, default=126,

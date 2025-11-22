@@ -4,6 +4,7 @@ Baseline models for AAPL price/return forecasting: Naive, ARIMA, GARCH
 """
 import argparse
 import logging
+import os
 import warnings
 from typing import Dict, List, Tuple, Optional
 import numpy as np
@@ -107,9 +108,9 @@ def run_walk_forward(target: str, train_window: int, test_window: int, step: int
     logging.info(f"Starting walk-forward validation for {target}")
 
     # Load data
-    data_path = 'data/aapl_features.csv'
+    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv')
     df = pd.read_csv(data_path, index_col=0)
-    df.index = pd.to_datetime(df.index)
+    df.index = pd.to_datetime(df.index, utc=True)
 
     # Get target series
     if target not in df.columns:
@@ -196,8 +197,8 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run baseline models (ARIMA, GARCH)')
-    parser.add_argument('--target', type=str, choices=['close', 'log_ret'], required=True,
-                       help='Target variable to forecast')
+    parser.add_argument('--target', type=str, choices=['close', 'log_ret'], default='close',
+                       help='Target variable to forecast (default: close)')
     parser.add_argument('--train_window', type=int, default=504,
                        help='Training window size (default: 1260 ~5 years)')
     parser.add_argument('--test_window', type=int, default=242,

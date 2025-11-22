@@ -29,15 +29,16 @@ def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     logging.info("Loading all prediction files...")
 
     # Load base data
-    data_path = Path('data/aapl_features.csv')
+    import os
+    data_path = Path(os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
     df_base = pd.read_csv(data_path, index_col=0)
-    df_base.index = pd.to_datetime(df_base.index)
+    df_base.index = pd.to_datetime(df_base.index, utc=True)
 
     # Load prediction files
-    models_dir = Path('models')
+    models_dir = Path(os.path.join(os.path.dirname(__file__), '..', 'models'))
     prediction_files = {
         'baseline_close': models_dir / 'baseline_close_predictions.csv',
         'baseline_log_ret': models_dir / 'baseline_log_ret_predictions.csv',
@@ -51,11 +52,11 @@ def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
             df = pd.read_csv(filepath)
             # Set date column as index properly
             if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date'])
+                df['date'] = pd.to_datetime(df['date'], utc=True)
                 df.set_index('date', inplace=True)
             else:
                 # Fallback to first column if no date column
-                df.index = pd.to_datetime(df.index)
+                df.index = pd.to_datetime(df.index, utc=True)
             predictions[name] = df
             logging.info(f"Loaded {name}: {len(df)} predictions")
         else:
@@ -71,25 +72,22 @@ def combine_predictions(df_base: pd.DataFrame, predictions: Dict[str, pd.DataFra
     # Start with base data
     combined_df = df_base.copy()
 
-    # Add predictions from each model
+    # Collect all prediction columns
+    all_preds = pd.DataFrame(index=combined_df.index)
+
     for name, pred_df in predictions.items():
         if len(pred_df) == 0:
             continue
 
-        # Merge predictions based on date index
+        # Remove duplicate indices, keeping the last prediction for each date
+        pred_df = pred_df[~pred_df.index.duplicated(keep='last')]
+
         for col in pred_df.columns:
             if col not in ['window_id', 'target']:
-                # Create a temporary DataFrame with just the column we want to merge
-                temp_df = pred_df[col].to_frame()
-                temp_df.columns = [f"{name}_{col}"]
+                all_preds[f"{name}_{col}"] = pred_df[col]
 
-                # Merge with combined_df (both have datetime index)
-                combined_df = combined_df.merge(
-                    temp_df,
-                    left_index=True,
-                    right_index=True,
-                    how='left'
-                )
+    # Concatenate all predictions at once
+    combined_df = pd.concat([combined_df, all_preds], axis=1)
 
     # Remove duplicates and sort by date
     combined_df = combined_df[~combined_df.index.duplicated(keep='first')]
@@ -156,7 +154,8 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
 
 def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures') -> None:
     """Create all required plots"""
-    ensure_dirs(output_dir)
+    import os
+    os.makedirs(output_dir, exist_ok=True)
     logging.info(f"Creating plots in {output_dir}...")
 
     # Set up the plotting area
