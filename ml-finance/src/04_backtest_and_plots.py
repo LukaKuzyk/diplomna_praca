@@ -4,6 +4,7 @@ Backtesting and visualization for AAPL forecasting models
 """
 import argparse
 import logging
+import os
 import warnings
 from typing import Dict, List, Tuple, Optional
 import numpy as np
@@ -405,7 +406,7 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
 
 def save_metrics_summary(metrics: Dict[str, Dict[str, float]],
                         strategy_perf: Dict[str, float],
-                        output_path: str = 'reports/metrics_summary.txt') -> None:
+                        output_path: str = os.path.join(os.path.dirname(__file__), 'reports', 'metrics_summary.txt')) -> None:
     """Save metrics summary to file"""
     ensure_dirs(output_path)
 

@@ -26,9 +26,10 @@ except ImportError:
     XGBOOST_AVAILABLE = False
     logging.warning("XGBoost not available, will use RandomForest as fallback")
 
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -48,8 +49,13 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             features_df.index = pd.to_datetime(features_df.index)
 
     # Lag features for log_ret
-    for lag in [1, 2, 5, 10, 15, 20]:
+    for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
+
+    # Volume features
+    # features_df['volume'] = df['Volume']
+    # for lag in [1, 2, 5]:
+    #     features_df[f'volume_lag_{lag}'] = features_df['volume'].shift(lag)
 
     # Technical indicators
     # SMA(5) and SMA(20)
@@ -113,8 +119,8 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
 
     # Random Forest
     models['rf'] = (RandomForestRegressor(
-        n_estimators=500,
-        max_depth=10,
+        n_estimators=200,
+        max_depth=15,
         min_samples_split=5,
         min_samples_leaf=2,
         random_state=random_state
@@ -130,9 +136,15 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
             colsample_bytree=0.8,
             random_state=random_state
         ), StandardScaler())
-        logging.info("XGBoost available for comparison")
+        # logging.info("XGBoost available for comparison")
     else:
         logging.warning("XGBoost not available, skipping XGBoost model")
+
+    # Support Vector Regressor
+    models['svr'] = (SVR(kernel='rbf', C=1.0, epsilon=0.1), StandardScaler())
+
+    # Gradient Boosting Regressor
+    models['gbr'] = (GradientBoostingRegressor(n_estimators=200, max_depth=5, learning_rate=0.1, random_state=random_state), StandardScaler())
 
     return models
 
@@ -151,7 +163,14 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
 
     # Define feature columns (exclude target and other non-feature columns)
     feature_cols = [
-        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10', 'log_ret_lag_15', 'log_ret_lag_20',
+        'log_ret_lag_1',
+        #'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5',
+        'log_ret_lag_7',
+        # 'log_ret_lag_10',
+        'log_ret_lag_14',
+        # 'log_ret_lag_15', 'log_ret_lag_20',
+        'log_ret_lag_21', 'log_ret_lag_30',
+        # 'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
         'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
         'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
         'day_of_week', 'month'
@@ -252,7 +271,7 @@ def main():
     results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step)
 
     # Save results
-    output_path = 'models/ml_predictions.csv'
+    output_path = os.path.join(os.path.dirname(__file__), 'models', 'ml_predictions.csv')
     save_predictions_csv(output_path, results_df)
 
     logging.info("ML modeling completed")

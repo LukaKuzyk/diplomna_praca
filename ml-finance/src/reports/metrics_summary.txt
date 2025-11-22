@@ -7,24 +7,34 @@ ARIMA_Returns:
   Directional_Accuracy: 0.537634
 
 ML_LINEAR_Returns:
-  RMSE: 0.015691
-  MAE: 0.011944
-  Directional_Accuracy: 0.766780
+  RMSE: 0.012562
+  MAE: 0.009297
+  Directional_Accuracy: 0.819113
 
 ML_RF_Returns:
-  RMSE: 0.013031
-  MAE: 0.008819
-  Directional_Accuracy: 0.841866
+  RMSE: 0.013015
+  MAE: 0.008707
+  Directional_Accuracy: 0.828214
 
 ML_XGB_Returns:
-  RMSE: 0.012652
-  MAE: 0.008366
-  Directional_Accuracy: 0.873720
+  RMSE: 0.012699
+  MAE: 0.008345
+  Directional_Accuracy: 0.861206
+
+ML_SVR_Returns:
+  RMSE: 0.020375
+  MAE: 0.015154
+  Directional_Accuracy: 0.515358
+
+ML_GBR_Returns:
+  RMSE: 0.011913
+  MAE: 0.008057
+  Directional_Accuracy: 0.864619
 
 Directional Strategy Performance:
-  Total Return: 0.046505
-  Annual Return: 0.070317
-  Annual Volatility: 0.291121
-  Sharpe Ratio: 0.241540
-  Max Drawdown: -0.255986
-  Number of Trades: 402
+  Total Return: 0.806271
+  Annual Return: 0.402464
+  Annual Volatility: 0.286671
+  Sharpe Ratio: 1.403921
+  Max Drawdown: -0.190663
+  Number of Trades: 412
