@@ -1,0 +1,25 @@
+AAPL Forecasting Models - Final Metrics Summary
+==================================================
+
+ARIMA_Close:
+  RMSE: 30.128444
+  MAE: 24.993992
+  MAPE: 0.139895
+
+ARIMA_Returns:
+  RMSE: 0.018032
+  MAE: 0.012980
+  Directional_Accuracy: 0.529620
+
+ML_Returns:
+  RMSE: 0.019016
+  MAE: 0.014561
+  Directional_Accuracy: 0.560566
+
+Directional Strategy Performance:
+  Total Return: -0.370522
+  Annual Return: -0.247055
+  Annual Volatility: 0.289188
+  Sharpe Ratio: -0.854304
+  Max Drawdown: -0.441394
+  Number of Trades: 403
