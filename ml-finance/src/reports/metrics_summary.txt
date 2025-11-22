@@ -1,15 +1,20 @@
 AAPL Forecasting Models - Final Metrics Summary
 ==================================================
 
+ARIMA_Returns:
+  RMSE: 0.016397
+  MAE: 0.011248
+  Directional_Accuracy: 0.537634
+
 ML_LINEAR_Returns:
   RMSE: 0.015691
   MAE: 0.011944
   Directional_Accuracy: 0.766780
 
 ML_RF_Returns:
-  RMSE: 0.013025
-  MAE: 0.008818
-  Directional_Accuracy: 0.845279
+  RMSE: 0.013031
+  MAE: 0.008819
+  Directional_Accuracy: 0.841866
 
 ML_XGB_Returns:
   RMSE: 0.012652
@@ -17,9 +22,9 @@ ML_XGB_Returns:
   Directional_Accuracy: 0.873720
 
 Directional Strategy Performance:
-  Total Return: 0.046504
+  Total Return: 0.046505
   Annual Return: 0.070317
   Annual Volatility: 0.291121
-  Sharpe Ratio: 0.241538
-  Max Drawdown: -0.255987
+  Sharpe Ratio: 0.241540
+  Max Drawdown: -0.255986
   Number of Trades: 402
