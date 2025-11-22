@@ -30,7 +30,7 @@ def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
 
     # Load base data
     import os
-    data_path = Path(os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv'))
+    data_path = Path(os.path.join(os.path.dirname(__file__), 'data', 'aapl_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
@@ -38,7 +38,7 @@ def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     df_base.index = pd.to_datetime(df_base.index, utc=True)
 
     # Load prediction files
-    models_dir = Path(os.path.join(os.path.dirname(__file__), '..', 'models'))
+    models_dir = Path(os.path.join(os.path.dirname(__file__), 'models'))
     prediction_files = {
         'baseline_close': models_dir / 'baseline_close_predictions.csv',
         'baseline_log_ret': models_dir / 'baseline_log_ret_predictions.csv',
