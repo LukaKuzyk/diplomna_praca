@@ -210,16 +210,14 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures')
     plt.plot(plot_data.index, plot_data['log_ret'], label='Actual Returns',
              alpha=0.7, color='blue')
 
-    # Plot ML predictions
-    ml_pred_col = None
-    for col in plot_data.columns:
-        if 'ml_y_pred_ml' in col:
-            ml_pred_col = col
-            break
-
-    if ml_pred_col and plot_data[ml_pred_col].notna().any():
-        plt.plot(plot_data.index, plot_data[ml_pred_col],
-                label='ML Forecast', alpha=0.8, color='red', linestyle='--')
+    # Plot ML predictions (all models)
+    ml_pred_cols = [col for col in plot_data.columns if col.startswith('ml_y_pred_')]
+    colors = ['red', 'orange', 'purple', 'brown']
+    for i, ml_pred_col in enumerate(ml_pred_cols):
+        model_name = ml_pred_col.replace('ml_y_pred_', '').upper()
+        if plot_data[ml_pred_col].notna().any():
+            plt.plot(plot_data.index, plot_data[ml_pred_col],
+                    label=f'{model_name} Forecast', alpha=0.8, color=colors[i % len(colors)], linestyle='--')
 
     # Plot ARIMA predictions for returns
     arima_ret_col = None
@@ -278,44 +276,59 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures')
     logging.info("Saved vol_forecast.png")
 
     # 4. Strategy equity curve
-    if ml_pred_col and plot_data[ml_pred_col].notna().any():
+    ml_pred_cols = [col for col in plot_data.columns if col.startswith('ml_y_pred_')]
+    if ml_pred_cols:
         plt.figure(figsize=fig_size)
 
-        # Calculate strategy performance
-        strategy_perf = calculate_strategy_performance(
-            plot_data['log_ret'],
-            plot_data[ml_pred_col]
-        )
+        # Plot buy-and-hold for comparison
+        bh_returns = plot_data['log_ret'].dropna()
+        bh_equity = (1 + bh_returns).cumprod()
+        plt.plot(bh_equity.index, bh_equity.values, label='Buy & Hold', alpha=0.7, color='blue', linewidth=2)
 
-        if 'error' not in strategy_perf:
-            # Calculate cumulative returns
-            data_strategy = pd.DataFrame({
-                'returns': plot_data['log_ret'],
-                'ml_pred': plot_data[ml_pred_col]
-            }).dropna()
+        colors = ['green', 'red', 'orange', 'purple']
+        best_perf = {}
+        best_model = None
 
-            positions = np.sign(data_strategy['ml_pred'])
-            strategy_returns = positions.shift(1) * data_strategy['returns']
-            strategy_returns = strategy_returns.dropna()
+        for i, ml_pred_col in enumerate(ml_pred_cols):
+            model_name = ml_pred_col.replace('ml_y_pred_', '').upper()
+            if plot_data[ml_pred_col].notna().any():
+                # Calculate strategy performance
+                strategy_perf = calculate_strategy_performance(
+                    plot_data['log_ret'],
+                    plot_data[ml_pred_col]
+                )
 
-            # Apply transaction costs
-            position_changes = positions != positions.shift(1)
-            tc_per_trade = position_changes * 0.0005  # 5bp
-            strategy_returns = strategy_returns - tc_per_trade
-            strategy_returns = strategy_returns.dropna()
+                if 'error' not in strategy_perf:
+                    # Calculate cumulative returns
+                    data_strategy = pd.DataFrame({
+                        'returns': plot_data['log_ret'],
+                        'ml_pred': plot_data[ml_pred_col]
+                    }).dropna()
 
-            # Calculate equity curve
-            equity_curve = (1 + strategy_returns).cumprod()
+                    positions = np.sign(data_strategy['ml_pred'])
+                    strategy_returns = positions.shift(1) * data_strategy['returns']
+                    strategy_returns = strategy_returns.dropna()
 
-            # Plot equity curve
-            plt.plot(equity_curve.index, equity_curve.values, label='Strategy Equity', color='green')
+                    # Apply transaction costs
+                    position_changes = positions != positions.shift(1)
+                    tc_per_trade = position_changes * 0.0005  # 5bp
+                    strategy_returns = strategy_returns - tc_per_trade
+                    strategy_returns = strategy_returns.dropna()
 
-            # Add buy-and-hold for comparison
-            bh_returns = plot_data['log_ret'].dropna()
-            bh_equity = (1 + bh_returns).cumprod()
-            plt.plot(bh_equity.index, bh_equity.values, label='Buy & Hold', alpha=0.7, color='blue')
+                    # Calculate equity curve
+                    equity_curve = (1 + strategy_returns).cumprod()
 
-            plt.title('AAPL Directional Strategy vs Buy & Hold')
+                    # Plot equity curve
+                    plt.plot(equity_curve.index, equity_curve.values,
+                            label=f'{model_name} Strategy', color=colors[i % len(colors)], linewidth=1.5)
+
+                    # Track best model
+                    if not best_perf or strategy_perf.get('sharpe_ratio', 0) > best_perf.get('sharpe_ratio', 0):
+                        best_perf = strategy_perf
+                        best_model = model_name
+
+        if best_perf:
+            plt.title(f'AAPL Directional Strategies vs Buy & Hold\nBest: {best_model} (Sharpe: {best_perf.get("sharpe_ratio", 0):.2f})')
             plt.xlabel('Date')
             plt.ylabel('Cumulative Returns')
             plt.legend()
@@ -327,8 +340,8 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures')
             plt.close()
             logging.info("Saved strategy_equity.png")
 
-            # Store strategy performance for summary
-            return strategy_perf
+            # Store best strategy performance for summary
+            return best_perf
 
     return {}
 
@@ -371,10 +384,10 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
             )
             metrics['ARIMA_Returns'] = arima_ret_metrics
 
-    # ML Returns metrics
-    ml_cols = [col for col in combined_df.columns if 'ml_y_pred_ml' in col]
-    if ml_cols:
-        col = ml_cols[0]
+    # ML Returns metrics for each model
+    ml_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_')]
+    for col in ml_cols:
+        model_name = col.replace('ml_y_pred_', '').upper()
         mask = combined_df['log_ret'].notna() & combined_df[col].notna()
         if mask.sum() > 0:
             ml_metrics = evaluate_regression(
@@ -385,7 +398,7 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
                 combined_df.loc[mask, 'log_ret'],
                 combined_df.loc[mask, col]
             )
-            metrics['ML_Returns'] = ml_metrics
+            metrics[f'ML_{model_name}_Returns'] = ml_metrics
 
     return metrics
 

@@ -51,7 +51,7 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             features_df.index = pd.to_datetime(features_df.index)
 
     # Lag features for log_ret
-    for lag in [1, 2, 5, 10]:
+    for lag in [1, 2, 5, 10, 15, 20]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
 
     # Technical indicators
@@ -72,6 +72,25 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         return rsi
 
     features_df['rsi_14'] = calculate_rsi(features_df['close'], 14)
+
+    # MACD
+    exp1 = features_df['close'].ewm(span=12, adjust=False).mean()
+    exp2 = features_df['close'].ewm(span=26, adjust=False).mean()
+    features_df['macd'] = exp1 - exp2
+    features_df['macd_signal'] = features_df['macd'].ewm(span=9, adjust=False).mean()
+
+    # Bollinger Bands
+    sma20 = features_df['close'].rolling(20).mean()
+    std20 = features_df['close'].rolling(20).std()
+    features_df['bb_upper'] = sma20 + 2 * std20
+    features_df['bb_lower'] = sma20 - 2 * std20
+    features_df['bb_middle'] = sma20
+
+    # Stochastic Oscillator
+    low14 = features_df['close'].rolling(14).min()
+    high14 = features_df['close'].rolling(14).max()
+    features_df['stoch_k'] = 100 * (features_df['close'] - low14) / (high14 - low14)
+    features_df['stoch_d'] = features_df['stoch_k'].rolling(3).mean()
 
     # Volatility feature (already exists as rv_5)
     features_df['volatility'] = features_df['rv_5']
@@ -100,18 +119,20 @@ class MLModel:
         if self.use_xgboost:
             logging.info("Using XGBoost model")
             self.model = XGBRegressor(
-                n_estimators=300,
-                max_depth=4,
-                learning_rate=0.05,
-                subsample=0.9,
-                colsample_bytree=0.9,
+                n_estimators=500,
+                max_depth=6,
+                learning_rate=0.03,
+                subsample=0.8,
+                colsample_bytree=0.8,
                 random_state=random_state
             )
         else:
             logging.info("Using RandomForest model (XGBoost not available)")
             self.model = RandomForestRegressor(
-                n_estimators=400,
-                max_depth=6,
+                n_estimators=500,
+                max_depth=10,
+                min_samples_split=5,
+                min_samples_leaf=2,
                 random_state=random_state
             )
 
@@ -204,7 +225,8 @@ def predict_next_day() -> Dict[str, any]:
     logging.info("Starting next day prediction with all models...")
 
     # Load data
-    data_path = Path('data/aapl_features.csv')
+    import os
+    data_path = Path(os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
@@ -216,8 +238,9 @@ def predict_next_day() -> Dict[str, any]:
 
     # Define feature columns for ML
     feature_cols = [
-        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10',
-        'sma_5', 'sma_20', 'rsi_14', 'volatility',
+        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10', 'log_ret_lag_15', 'log_ret_lag_20',
+        'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
+        'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
         'day_of_week', 'month'
     ]
 
@@ -298,9 +321,13 @@ def predict_next_day() -> Dict[str, any]:
 
 
 def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/figures') -> None:
-    """Create plot showing historical price and next day predictions from all models"""
+    """Create plot showing historical predictions vs actual and next day predictions"""
     ensure_dirs(output_dir)
     logging.info(f"Creating prediction plot in {output_dir}...")
+
+    # Load historical predictions
+    ml_pred_path = Path('models/ml_predictions.csv')
+    baseline_pred_path = Path('models/baseline_log_ret_predictions.csv')
 
     historical_data = result['historical_data']
     predictions = result['predictions']
@@ -308,30 +335,96 @@ def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/fi
     next_date = last_date + pd.Timedelta(days=1)
 
     # Set up the plotting area
-    plt.figure(figsize=(14, 8))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12), sharex=True)
 
-    # Plot historical price
-    plt.plot(historical_data.index, historical_data['close'], label='Історична ціна (Historical Price)', color='blue', linewidth=2)
+    # Plot 1: Historical price
+    ax1.plot(historical_data.index, historical_data['close'], label='Історична ціна (Historical Price)', color='blue', linewidth=2)
 
-    # Plot predictions as points
+    # Load and plot historical ML predictions (last 30 days)
+    if ml_pred_path.exists():
+        ml_preds = pd.read_csv(ml_pred_path)
+        ml_preds['date'] = pd.to_datetime(ml_preds['date'], utc=True)
+        ml_preds.set_index('date', inplace=True)
+
+        # Get last 30 days of predictions
+        recent_preds = ml_preds.tail(30)
+
+        # Plot predicted vs actual prices for historical data
+        for idx, row in recent_preds.iterrows():
+            if idx in historical_data.index:
+                actual_price = historical_data.loc[idx, 'close']
+                # Calculate predicted price from log_ret
+                prev_price = historical_data.loc[:idx].iloc[-2]['close'] if len(historical_data.loc[:idx]) > 1 else actual_price
+                for col in recent_preds.columns:
+                    if col.startswith('y_pred_'):
+                        pred_ret = row[col]
+                        pred_price = prev_price * np.exp(pred_ret)
+                        model_name = col.replace('y_pred_', '').upper()
+                        color = {'LINEAR': 'cyan', 'RF': 'magenta', 'XGB': 'red'}.get(model_name, 'gray')
+                        ax1.scatter(idx, pred_price, color=color, alpha=0.6, s=20)
+                        ax1.scatter(idx, actual_price, color='blue', alpha=0.6, s=20)
+
+    # Plot next day predictions as points
     colors = {'ML': 'red', 'ARIMA': 'green', 'Naive': 'orange', 'GARCH': 'purple'}
     markers = {'ML': 'o', 'ARIMA': 's', 'Naive': '^', 'GARCH': 'D'}
 
     for model, pred in predictions.items():
-        plt.scatter(next_date, pred['close'], color=colors[model], marker=markers[model], s=100,
-                   label=f'{model} прогноз: ${pred["close"]:.2f} ({pred["log_ret"]:.4f})', zorder=5)
+        ax1.scatter(next_date, pred['close'], color=colors[model], marker=markers[model], s=100,
+                   label=f'{model} прогноз: ${pred["close"]:.2f}', zorder=5)
 
-    # Add vertical line for today
-    plt.axvline(x=last_date, color='black', linestyle='--', alpha=0.7, label='Сьогодні (Today)')
+    ax1.axvline(x=last_date, color='black', linestyle='--', alpha=0.7, label='Сьогодні (Today)')
+    ax1.set_title('AAPL: Історична ціна та прогнози (Historical Price and Predictions)', fontsize=14)
+    ax1.set_ylabel('Ціна закриття (Close Price, USD)', fontsize=12)
+    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax1.grid(True, alpha=0.3)
 
-    # Formatting
-    plt.title('AAPL: Історична ціна та прогнози на наступний день\n(Historical Price and Next Day Predictions)', fontsize=16)
-    plt.xlabel('Дата (Date)', fontsize=12)
-    plt.ylabel('Ціна закриття (Close Price, USD)', fontsize=12)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.grid(True, alpha=0.3)
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    # Plot 2: Returns predictions vs actual
+    if ml_pred_path.exists() and baseline_pred_path.exists():
+        ml_preds = pd.read_csv(ml_pred_path)
+        ml_preds['date'] = pd.to_datetime(ml_preds['date'], utc=True)
+        ml_preds.set_index('date', inplace=True)
+
+        baseline_preds = pd.read_csv(baseline_pred_path)
+        baseline_preds['date'] = pd.to_datetime(baseline_preds['date'], utc=True)
+        baseline_preds.set_index('date', inplace=True)
+
+        # Get last 30 days
+        recent_ml = ml_preds.tail(30)
+        recent_baseline = baseline_preds.tail(30)
+
+        # Plot actual returns
+        actual_returns = historical_data['close'].pct_change().tail(30)
+        ax2.plot(actual_returns.index, actual_returns.values, label='Фактичні дохідності (Actual Returns)', color='blue', linewidth=2)
+
+        # Plot predicted returns
+        for idx, row in recent_ml.iterrows():
+            for col in recent_ml.columns:
+                if col.startswith('y_pred_'):
+                    pred_ret = row[col]
+                    model_name = col.replace('y_pred_', '').upper()
+                    color = {'LINEAR': 'cyan', 'RF': 'magenta', 'XGB': 'red'}.get(model_name, 'gray')
+                    ax2.scatter(idx, pred_ret, color=color, alpha=0.6, s=20, label=f'{model_name} Pred' if idx == recent_ml.index[0] else "")
+
+        # Plot ARIMA predictions
+        if 'y_pred_arima' in recent_baseline.columns:
+            arima_preds = recent_baseline['y_pred_arima'].tail(30)
+            ax2.scatter(arima_preds.index, arima_preds.values, color='green', alpha=0.6, s=20, label='ARIMA Pred')
+
+        # Plot GARCH predictions
+        if 'y_pred_garch_mean' in recent_baseline.columns:
+            garch_preds = recent_baseline['y_pred_garch_mean'].tail(30)
+            ax2.scatter(garch_preds.index, garch_preds.values, color='purple', alpha=0.6, s=20, label='GARCH Pred')
+
+    ax2.axhline(y=0, color='black', linestyle='-', alpha=0.5)
+    ax2.axvline(x=last_date, color='black', linestyle='--', alpha=0.7)
+    ax2.set_title('Доходності: Фактичні vs Прогнози (Returns: Actual vs Predictions)', fontsize=14)
+    ax2.set_xlabel('Дата (Date)', fontsize=12)
+    ax2.set_ylabel('Доходність (Return)', fontsize=12)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax2.grid(True, alpha=0.3)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     plt.xticks(rotation=45)
+
     plt.tight_layout()
 
     # Save plot

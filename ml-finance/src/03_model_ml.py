@@ -27,6 +27,7 @@ except ImportError:
     logging.warning("XGBoost not available, will use RandomForest as fallback")
 
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 
 
@@ -47,7 +48,7 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             features_df.index = pd.to_datetime(features_df.index)
 
     # Lag features for log_ret
-    for lag in [1, 2, 5, 10]:
+    for lag in [1, 2, 5, 10, 15, 20]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
 
     # Technical indicators
@@ -69,6 +70,25 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
 
     features_df['rsi_14'] = calculate_rsi(features_df['close'], 14)
 
+    # MACD
+    exp1 = features_df['close'].ewm(span=12, adjust=False).mean()
+    exp2 = features_df['close'].ewm(span=26, adjust=False).mean()
+    features_df['macd'] = exp1 - exp2
+    features_df['macd_signal'] = features_df['macd'].ewm(span=9, adjust=False).mean()
+
+    # Bollinger Bands
+    sma20 = features_df['close'].rolling(20).mean()
+    std20 = features_df['close'].rolling(20).std()
+    features_df['bb_upper'] = sma20 + 2 * std20
+    features_df['bb_lower'] = sma20 - 2 * std20
+    features_df['bb_middle'] = sma20
+
+    # Stochastic Oscillator
+    low14 = features_df['close'].rolling(14).min()
+    high14 = features_df['close'].rolling(14).max()
+    features_df['stoch_k'] = 100 * (features_df['close'] - low14) / (high14 - low14)
+    features_df['stoch_d'] = features_df['stoch_k'].rolling(3).mean()
+
     # Volatility feature (already exists as rv_5)
     features_df['volatility'] = features_df['rv_5']
 
@@ -84,46 +104,37 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     return features_df
 
 
-class MLModel:
-    """ML model wrapper with XGBoost/RandomForest fallback"""
+def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
+    """Get dictionary of ML models to compare"""
+    models = {}
 
-    def __init__(self, use_xgboost: bool = True, random_state: int = 42):
-        self.use_xgboost = use_xgboost and XGBOOST_AVAILABLE
-        self.random_state = random_state
-        self.model = None
-        self.scaler = StandardScaler()
+    # Linear Regression (baseline)
+    models['linear'] = (LinearRegression(), StandardScaler())
 
-        if self.use_xgboost:
-            logging.info("Using XGBoost model")
-            self.model = XGBRegressor(
-                n_estimators=300,
-                max_depth=4,
-                learning_rate=0.05,
-                subsample=0.9,
-                colsample_bytree=0.9,
-                random_state=random_state
-            )
-        else:
-            logging.info("Using RandomForest model (XGBoost not available)")
-            self.model = RandomForestRegressor(
-                n_estimators=400,
-                max_depth=6,
-                random_state=random_state
-            )
+    # Random Forest
+    models['rf'] = (RandomForestRegressor(
+        n_estimators=500,
+        max_depth=10,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        random_state=random_state
+    ), StandardScaler())
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        """Fit the model"""
-        # Scale features
-        X_scaled = self.scaler.fit_transform(X)
+    # XGBoost (if available)
+    if XGBOOST_AVAILABLE:
+        models['xgb'] = (XGBRegressor(
+            n_estimators=500,
+            max_depth=6,
+            learning_rate=0.03,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state
+        ), StandardScaler())
+        logging.info("XGBoost available for comparison")
+    else:
+        logging.warning("XGBoost not available, skipping XGBoost model")
 
-        # Fit model
-        self.model.fit(X_scaled, y)
-        logging.info("Model fitted successfully")
-
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """Make predictions"""
-        X_scaled = self.scaler.transform(X)
-        return self.model.predict(X_scaled)
+    return models
 
 
 def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.DataFrame:
@@ -131,7 +142,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
     logging.info("Starting ML walk-forward validation")
 
     # Load data
-    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'data', 'aapl_features.csv')
     df = pd.read_csv(data_path, index_col=0)
     df.index = pd.to_datetime(df.index, utc=True)
 
@@ -140,8 +151,9 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
 
     # Define feature columns (exclude target and other non-feature columns)
     feature_cols = [
-        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10',
-        'sma_5', 'sma_20', 'rsi_14', 'volatility',
+        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10', 'log_ret_lag_15', 'log_ret_lag_20',
+        'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
+        'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
         'day_of_week', 'month'
     ]
 
@@ -168,21 +180,23 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
             logging.warning(f"Skipping window {window_id} due to insufficient data")
             continue
 
-        # Fit model
-        ml_model = MLModel(use_xgboost=XGBOOST_AVAILABLE)
-        ml_model.fit(train_features, train_split)
+        # Fit and predict with multiple models
+        models = get_ml_models()
+        predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret'}
 
-        # Make predictions
-        y_pred_ml = ml_model.predict(test_features)
+        for model_name, (model, scaler) in models.items():
+            # Fit model
+            X_scaled = scaler.fit_transform(train_features)
+            model.fit(X_scaled, train_split)
+
+            # Predict
+            X_test_scaled = scaler.transform(test_features)
+            y_pred = model.predict(X_test_scaled)
+
+            predictions[f'y_pred_{model_name}'] = y_pred
 
         # Store predictions
-        window_results = pd.DataFrame({
-            'date': test_split.index,
-            'y_true': test_split.values,
-            'y_pred_ml': y_pred_ml,
-            'window_id': window_id,
-            'target': 'log_ret'
-        })
+        window_results = pd.DataFrame(predictions)
         all_predictions.append(window_results)
 
     # Combine all predictions
@@ -191,22 +205,25 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.Da
 
     results_df = pd.concat(all_predictions, ignore_index=True)
 
-    # Calculate metrics
-    mask = results_df['y_true'].notna() & results_df['y_pred_ml'].notna()
-    if mask.sum() > 0:
-        ml_metrics = evaluate_regression(
-            results_df.loc[mask, 'y_true'],
-            results_df.loc[mask, 'y_pred_ml']
-        )
+    # Calculate metrics for each model
+    models = get_ml_models()
+    for model_name in models.keys():
+        pred_col = f'y_pred_{model_name}'
+        mask = results_df['y_true'].notna() & results_df[pred_col].notna()
+        if mask.sum() > 0:
+            ml_metrics = evaluate_regression(
+                results_df.loc[mask, 'y_true'],
+                results_df.loc[mask, pred_col]
+            )
 
-        ml_da = directional_accuracy(
-            results_df.loc[mask, 'y_true'],
-            results_df.loc[mask, 'y_pred_ml']
-        )
+            ml_da = directional_accuracy(
+                results_df.loc[mask, 'y_true'],
+                results_df.loc[mask, pred_col]
+            )
 
-        ml_metrics['Directional_Accuracy'] = ml_da
+            ml_metrics['Directional_Accuracy'] = ml_da
 
-        logging.info(f"ML Model Metrics: {ml_metrics}")
+            logging.info(f"{model_name.upper()} Model Metrics: {ml_metrics}")
 
     return results_df
 
@@ -217,8 +234,8 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
-    parser.add_argument('--train_window', type=int, default=504,
-                       help='Training window size (default: 504 ~2 years)')
+    parser.add_argument('--train_window', type=int, default=252,
+                       help='Training window size (default: 252 ~1 year)')
     parser.add_argument('--test_window', type=int, default=252,
                        help='Test window size (default: 252 ~1 year)')
     parser.add_argument('--step', type=int, default=126,
@@ -226,8 +243,9 @@ def main():
 
     args = parser.parse_args()
 
-    logging.info("Running ML model for log-return forecasting")
-    logging.info(f"XGBoost available: {XGBOOST_AVAILABLE}")
+    logging.info("Running ML models for log-return forecasting")
+    models = get_ml_models()
+    logging.info(f"Comparing models: {list(models.keys())}")
 
     # Run walk-forward validation
 

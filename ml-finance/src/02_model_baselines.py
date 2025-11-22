@@ -91,16 +91,20 @@ class BaselineModels:
                 logging.error(f"GARCH fallback also failed: {e2}")
                 raise
 
-    def forecast_garch(self, model_fit: arch_model, steps: int = 1) -> Tuple[float, float, float]:
-        """Get GARCH volatility forecast"""
+    def forecast_garch(self, model_fit: arch_model, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Get GARCH mean and volatility forecast"""
         try:
             forecast = model_fit.forecast(horizon=steps)
-            # Get conditional volatility for next period
-            vol_forecast = np.sqrt(forecast.variance.iloc[-1, 0])
-            return 0.0, 0.0, vol_forecast  # mean=0, lower=0, upper=volatility
+            # Get conditional mean and volatility for next periods
+            mean_forecast = forecast.mean.iloc[-1, :].values
+            vol_forecast = np.sqrt(forecast.variance.iloc[-1, :].values)
+            # For simplicity, use mean +/- vol as bounds
+            lower = mean_forecast - vol_forecast
+            upper = mean_forecast + vol_forecast
+            return mean_forecast, lower, upper
         except Exception as e:
             logging.warning(f"GARCH forecasting failed: {e}")
-            return 0.0, 0.0, 0.0
+            return np.zeros(steps), np.zeros(steps), np.zeros(steps)
 
 
 def run_walk_forward(target: str, train_window: int, test_window: int, step: int) -> pd.DataFrame:
@@ -108,7 +112,7 @@ def run_walk_forward(target: str, train_window: int, test_window: int, step: int
     logging.info(f"Starting walk-forward validation for {target}")
 
     # Load data
-    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'data', 'aapl_features.csv')
     df = pd.read_csv(data_path, index_col=0)
     df.index = pd.to_datetime(df.index, utc=True)
 
@@ -145,15 +149,14 @@ def run_walk_forward(target: str, train_window: int, test_window: int, step: int
         if target == 'log_ret':
             try:
                 garch_model = baseline_models.fit_garch(train_split)
-                _, _, garch_vol = baseline_models.forecast_garch(garch_model, len(test_split))
-                y_pred_garch_mean = np.zeros(len(test_split))  # Mean forecast = 0
+                y_pred_garch_mean, _, garch_vol = baseline_models.forecast_garch(garch_model, len(test_split))
             except Exception as e:
                 logging.warning(f"GARCH failed for window {window_id}: {e}")
                 garch_vol = np.zeros(len(test_split))
                 y_pred_garch_mean = np.zeros(len(test_split))
         else:
             garch_vol = np.zeros(len(test_split))
-            y_pred_garch_mean = np.zeros(len(test_split))
+            y_pred_garch_mean = np.full(len(test_split), np.nan)  # Not applicable for price forecasting
 
         # Store predictions
         window_results = pd.DataFrame({
@@ -197,8 +200,8 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run baseline models (ARIMA, GARCH)')
-    parser.add_argument('--target', type=str, choices=['close', 'log_ret'], default='close',
-                       help='Target variable to forecast (default: close)')
+    parser.add_argument('--target', type=str, choices=['close', 'log_ret'], default='log_ret',
+                       help='Target variable to forecast (default: log_ret)')
     parser.add_argument('--train_window', type=int, default=504,
                        help='Training window size (default: 1260 ~5 years)')
     parser.add_argument('--test_window', type=int, default=242,

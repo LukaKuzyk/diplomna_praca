@@ -37,6 +37,12 @@ def download_aapl_data(ticker: str, years: int) -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"No data found for ticker {ticker}")
 
+    # Remove duplicate dates
+    initial_len = len(df)
+    df = df[~df.index.duplicated(keep='first')]
+    if len(df) < initial_len:
+        logging.info(f"Removed {initial_len - len(df)} duplicate dates")
+
     logging.info(f"Downloaded {len(df)} data points")
     return df
 
@@ -84,7 +90,7 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description='Download AAPL data and create features')
     parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
-    parser.add_argument('--years', type=int, default=3, help='Number of years of data (default: 10)')
+    parser.add_argument('--years', type=int, default=5, help='Number of years of data (default: 5)')
     args = parser.parse_args()
 
     logging.info(f"Starting data download for {args.ticker} ({args.years} years)")
