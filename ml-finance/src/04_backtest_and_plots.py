@@ -25,13 +25,13 @@ warnings.filterwarnings('ignore')
 plt.style.use('default')
 
 
-def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
+def load_all_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Load all prediction files and combine them"""
     logging.info("Loading all prediction files...")
 
     # Load base data
     import os
-    data_path = Path(os.path.join(os.path.dirname(__file__), 'data', 'aapl_features.csv'))
+    data_path = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', f'{ticker.lower()}_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
@@ -39,11 +39,11 @@ def load_all_predictions() -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     df_base.index = pd.to_datetime(df_base.index, utc=True)
 
     # Load prediction files
-    models_dir = Path(os.path.join(os.path.dirname(__file__), 'models'))
+    models_dir = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models'))
     prediction_files = {
         'baseline_close': models_dir / 'baseline_close_predictions.csv',
         'baseline_log_ret': models_dir / 'baseline_log_ret_predictions.csv',
-        'ml': models_dir / 'ml_predictions.csv'
+        'ml': models_dir / f'{ticker.lower()}_ml_predictions.csv'
     }
 
     predictions = {}
@@ -156,7 +156,9 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     }
 
 
-def create_plots(combined_df: pd.DataFrame, output_dir: str = 'reports/figures') -> None:
+def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
+    if output_dir is None:
+        output_dir = 'reports/figures'
     """Create all required plots"""
     import os
     os.makedirs(output_dir, exist_ok=True)
@@ -414,12 +416,14 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
 
 def save_metrics_summary(metrics: Dict[str, Dict[str, float]],
                         strategy_perf: Dict[str, float],
-                        output_path: str = os.path.join(os.path.dirname(__file__), 'reports', 'metrics_summary.txt')) -> None:
+                        output_path: str = None) -> None:
+    if output_path is None:
+        output_path = os.path.join(os.path.dirname(__file__), 'reports', 'metrics_summary.txt')
     """Save metrics summary to file"""
     ensure_dirs(output_path)
 
     with open(output_path, 'w') as f:
-        f.write("AAPL Forecasting Models - Final Metrics Summary\n")
+        f.write("Forecasting Models - Final Metrics Summary\n")
         f.write("=" * 50 + "\n\n")
 
         for model_name, model_metrics in metrics.items():
@@ -446,23 +450,26 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Create backtesting plots and metrics')
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
     logging.info("Starting backtesting and visualization...")
 
     try:
         # Load and combine all data
-        df_base, predictions = load_all_predictions()
+        df_base, predictions = load_all_predictions(args.ticker)
         combined_df = combine_predictions(df_base, predictions)
 
         # Create plots and get strategy performance
-        strategy_perf = create_plots(combined_df)
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports', f'{args.ticker.lower()}_figures')
+        strategy_perf = create_plots(combined_df, output_dir)
 
         # Calculate final metrics
         final_metrics = calculate_final_metrics(combined_df)
 
         # Save metrics summary
-        save_metrics_summary(final_metrics, strategy_perf)
+        output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports', f'{args.ticker.lower()}_metrics_summary.txt')
+        save_metrics_summary(final_metrics, strategy_perf, output_path)
 
         logging.info("Backtesting and visualization completed successfully!")
 

@@ -97,15 +97,15 @@ def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='Download AAPL data and create features')
-    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
     parser.add_argument('--years', type=int, default=5, help='Number of years of data (default: 5)')
     args = parser.parse_args()
 
     logging.info(f"Starting data download for {args.ticker} ({args.years} years)")
 
     # File paths
-    raw_data_path = 'data/aapl.csv'
-    features_path = 'data/aapl_features.csv'
+    raw_data_path = f'data/{args.ticker.lower()}.csv'
+    features_path = f'data/{args.ticker.lower()}_features.csv'
 
     # Check if raw data is fresh
     if is_file_fresh(raw_data_path, use_static_data=True):
@@ -125,7 +125,7 @@ def main():
         df = pd.merge(df_aapl, df_us10y[['us10y']], left_index=True, right_index=True, how='left')
 
         # Forward fill US10Y values for non-trading days
-        df['us10y'] = df['us10y'].fillna(method='ffill')
+        df['us10y'] = df['us10y'].fillna(method='ffill').fillna(method='bfill')
 
         # Save raw data
         os.makedirs(os.path.dirname(raw_data_path), exist_ok=True)

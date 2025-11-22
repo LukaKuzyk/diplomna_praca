@@ -114,9 +114,12 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['day_of_week'] = features_df.index.dayofweek  # 0=Monday, 4=Friday
     features_df['month'] = features_df.index.month  # 1-12
 
-    # Remove rows with NaN values (due to lagging and rolling windows)
+    # Fill NaN in features with 0
+    features_df = features_df.fillna(0)
+
+    # Remove rows with NaN values in essential columns
     initial_rows = len(features_df)
-    features_df = features_df.dropna()
+    features_df = features_df.dropna(subset=['close', 'log_ret', 'rv_5'])
     logging.info(f"Removed {initial_rows - len(features_df)} rows due to NaN values")
 
     return features_df
@@ -161,12 +164,12 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
     return models
 
 
-def run_ml_walk_forward(train_window: int, test_window: int, step: int) -> pd.DataFrame:
+def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: str = 'AAPL') -> pd.DataFrame:
     """Run walk-forward validation for ML model"""
     logging.info("Starting ML walk-forward validation")
 
     # Load data
-    data_path = os.path.join(os.path.dirname(__file__), 'data', 'aapl_features.csv')
+    data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', f'{ticker.lower()}_features.csv')
     df = pd.read_csv(data_path, index_col=0)
     df.index = pd.to_datetime(df.index, utc=True)
 
@@ -268,6 +271,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
     parser.add_argument('--train_window', type=int, default=252,
                        help='Training window size (default: 252 ~1 year)')
     parser.add_argument('--test_window', type=int, default=30,
@@ -283,10 +287,10 @@ def main():
 
     # Run walk-forward validation
 
-    results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step)
+    results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step, args.ticker)
 
     # Save results
-    output_path = os.path.join(os.path.dirname(__file__), 'models', 'ml_predictions.csv')
+    output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models', f'{args.ticker.lower()}_ml_predictions.csv')
     save_predictions_csv(output_path, results_df)
 
     logging.info("ML modeling completed")
