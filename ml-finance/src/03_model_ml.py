@@ -313,8 +313,8 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
-    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
-    parser.add_argument('--train_window', type=int, default=252,
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--train_window', type=int, default=756,
                        help='Training window size (default: 252 ~1 year)')
     parser.add_argument('--test_window', type=int, default=30,
                        help='Test window size (default: 30 ~1 month)')
