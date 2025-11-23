@@ -248,10 +248,18 @@ def create_pdf_report(data: dict, output_path: str) -> None:
     story.append(Paragraph("Conclusions & Recommendations", styles['Heading1']))
     story.append(Spacer(1, 12))
 
+    # Calculate dynamic DA range
+    if data['metrics']:
+        da_values = [metrics.get('Directional_Accuracy', 0) for metrics in data['metrics'].values()]
+        min_da = min(da_values) if da_values else 0
+        max_da = max(da_values) if da_values else 0
+    else:
+        min_da, max_da = 0, 0
+
     conclusion_text = f"""
     Based on the comprehensive ML analysis of {data['ticker']}, the following conclusions can be drawn:
 
-    1. <b>Model Performance:</b> The machine learning models demonstrate strong predictive capabilities with directional accuracies ranging from 78% to 87%.
+    1. <b>Model Performance:</b> The machine learning models demonstrate strong predictive capabilities with directional accuracies ranging from {min_da:.1%} to {max_da:.1%}.
 
     2. <b>Best Model:</b> {best_model if 'best_model' in locals() else 'XGBoost'} provides the most reliable predictions for trading decisions.
 
@@ -464,12 +472,20 @@ def create_html_report(data: dict, output_path: str) -> None:
         </div>
             """
 
+    # Calculate dynamic DA range for HTML
+    if data['metrics']:
+        da_values = [metrics.get('Directional_Accuracy', 0) for metrics in data['metrics'].values()]
+        min_da = min(da_values) if da_values else 0
+        max_da = max(da_values) if da_values else 0
+    else:
+        min_da, max_da = 0, 0
+
     # Conclusions
-    html_content += """
+    html_content += f"""
         <div class="section">
             <h2>🎯 Conclusions & Recommendations</h2>
             <ul>
-                <li><strong>Model Performance:</strong> ML models demonstrate strong predictive capabilities with directional accuracies ranging from 78% to 87%</li>
+                <li><strong>Model Performance:</strong> ML models demonstrate strong predictive capabilities with directional accuracies ranging from {min_da:.1%} to {max_da:.1%}</li>
                 <li><strong>Risk Management:</strong> Threshold-based strategy (0.2% threshold) effectively reduces false signals and improves signal quality</li>
                 <li><strong>Implementation:</strong> Consider implementing the recommended trading strategy with proper position sizing and risk management protocols</li>
                 <li><strong>Monitoring:</strong> Regular model retraining and performance monitoring is essential for maintaining predictive accuracy</li>
