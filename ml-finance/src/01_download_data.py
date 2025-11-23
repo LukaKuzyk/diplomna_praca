@@ -97,7 +97,7 @@ def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='Download AAPL data and create features')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='O', help='Stock ticker (default: AAPL)')
     parser.add_argument('--years', type=int, default=5, help='Number of years of data (default: 5)')
     args = parser.parse_args()
 

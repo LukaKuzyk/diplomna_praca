@@ -99,7 +99,7 @@ def combine_predictions(df_base: pd.DataFrame, predictions: Dict[str, pd.DataFra
 
 
 def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series,
-                                transaction_cost: float = 0.0005) -> Dict[str, float]:
+                                transaction_cost: float = 0.0) -> Dict[str, float]:
     """Calculate directional strategy performance"""
     logging.info("Calculating strategy performance...")
 
@@ -156,7 +156,7 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     }
 
 
-def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str = 'AAPL') -> None:
+def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str = 'MSFT') -> None:
     if output_dir is None:
         output_dir = 'reports/figures'
     """Create all required plots"""
@@ -320,7 +320,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
 
                     # Apply transaction costs
                     position_changes = positions != positions.shift(1)
-                    tc_per_trade = position_changes * 0.0005  # 5bp
+                    tc_per_trade = position_changes * 0.0  # No transaction costs
                     strategy_returns = strategy_returns - tc_per_trade
                     strategy_returns = strategy_returns.dropna()
 
@@ -450,7 +450,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Create backtesting plots and metrics')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='O', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
     logging.info("Starting backtesting and visualization...")

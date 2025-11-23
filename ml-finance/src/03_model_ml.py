@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-ML models for AAPL log-return forecasting: XGBoost/RandomForest
-"""
 import argparse
 import logging
 import os
@@ -221,7 +218,14 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
 
     # Define feature columns (exclude target and other non-feature columns)
     feature_cols = [
-        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5', 'log_ret_lag_7', 'log_ret_lag_10', 'log_ret_lag_14', 'log_ret_lag_15', 'log_ret_lag_20', 'log_ret_lag_21', 'log_ret_lag_30',
+        'log_ret_lag_1',
+        'log_ret_lag_2',
+        'log_ret_lag_3', 'log_ret_lag_5',
+        'log_ret_lag_7',
+        'log_ret_lag_10',
+        'log_ret_lag_14',
+        'log_ret_lag_15', 'log_ret_lag_20',
+        'log_ret_lag_21', 'log_ret_lag_30',
         'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
         'rolling_skew_20', 'rolling_kurt_20',
         'snp500_change',
@@ -309,7 +313,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='O', help='Stock ticker (default: AAPL)')
     parser.add_argument('--train_window', type=int, default=252,
                        help='Training window size (default: 252 ~1 year)')
     parser.add_argument('--test_window', type=int, default=30,
