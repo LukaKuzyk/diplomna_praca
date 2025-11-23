@@ -27,6 +27,9 @@ warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 
+# Signal threshold for trading decisions
+SIGNAL_THRESHOLD = 0.002
+
 
 def load_ml_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Load ML predictions and base data"""
@@ -177,9 +180,12 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
 
     model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_')]
     first_pred_mask = combined_df[model_cols].notna().any(axis=1)
-    first_pred_date = combined_df.index[first_pred_mask.argmax()]
-    combined_cut = combined_df.loc[first_pred_date:].copy()
-    combined_df = combined_cut
+    first_pred_date = combined_df[[col for col in combined_df.columns if col.startswith('ml_y_pred_')]].notna().any(
+        axis=1).idxmax()
+    combined_df = combined_df.loc[first_pred_date:]
+
+    # combined_cut = combined_df.loc[first_pred_date:].copy()
+    # combined_df = combined_cut
     logging.info(f"First prediction date: {first_pred_date}")
     colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan']
 
@@ -193,7 +199,7 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
 
         # Only-long strategy
         signals = pd.Series(0, index=pred_returns.index)
-        signals[pred_returns > 0.0003] = 1
+        signals[pred_returns > SIGNAL_THRESHOLD] = 1
 
         # Calculate returns
         data = pd.DataFrame({
@@ -324,7 +330,7 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
                 pred2 = combined_df[col2]
                 mask = pred1.notna() & pred2.notna()
                 if mask.sum() > 0:
-                    agreement = ((np.sign(pred1[mask]) == np.sign(pred2[mask])) & (np.abs(pred1[mask]) > 0.0003) & (np.abs(pred2[mask]) > 0.0003)).mean()
+                    agreement = ((np.sign(pred1[mask]) == np.sign(pred2[mask])) & (np.abs(pred1[mask]) > SIGNAL_THRESHOLD) & (np.abs(pred2[mask]) > SIGNAL_THRESHOLD)).mean()
                     agreement_matrix.iloc[i, j] = agreement
 
         # Convert to float and handle NaN
@@ -344,7 +350,7 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
             ax3.hist(np.abs(pred_returns), bins=30, alpha=0.7, color=colors[i % len(colors)],
                     label=col.replace('ml_y_pred_', '').upper(), density=True)
 
-    ax3.axvline(x=0.0003, color='black', linestyle='--', alpha=0.7, label='Signal Threshold')
+    ax3.axvline(x=SIGNAL_THRESHOLD, color='black', linestyle='--', alpha=0.7, label='Signal Threshold')
     ax3.set_xlabel('Prediction Magnitude')
     ax3.set_ylabel('Density')
     ax3.set_title('Prediction Confidence Distribution')
@@ -472,6 +478,8 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
 
 def create_plots(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> None:
     """Create all ML-focused plots"""
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
     ensure_dirs(output_dir)
     logging.info(f"Creating ML analysis plots in {output_dir}...")
 
@@ -509,7 +517,7 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
             ml_metrics['Directional_Accuracy'] = directional_accuracy(
                 combined_df.loc[mask, 'log_ret'],
                 combined_df.loc[mask, col],
-                threshold=0.0003
+                threshold=SIGNAL_THRESHOLD
             )
             metrics[f'ML_{model_name}_Returns'] = ml_metrics
 
@@ -539,7 +547,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Create ML model analysis plots and metrics')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
     logging.info(f"Starting ML analysis for {args.ticker}...")

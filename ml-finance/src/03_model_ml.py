@@ -12,6 +12,9 @@ from utils import (
     evaluate_regression, directional_accuracy, save_predictions_csv
 )
 
+SIGNAL_THRESHOLD = 0.002
+
+
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
@@ -297,7 +300,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             ml_da = directional_accuracy(
                 results_df.loc[mask, 'y_true'],
                 results_df.loc[mask, pred_col],
-                threshold=0.0003
+                threshold=SIGNAL_THRESHOLD
             )
 
             ml_metrics['Directional_Accuracy'] = ml_da
@@ -313,7 +316,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
     parser.add_argument('--train_window', type=int, default=1008,
                        help='Training window size (default: 252 ~1 year)')
     parser.add_argument('--test_window', type=int, default=63,

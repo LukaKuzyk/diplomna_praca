@@ -28,19 +28,34 @@ def date_utc_index(df: pd.DataFrame, col: str = "Date") -> pd.DataFrame:
     return df
 
 
-def train_test_splits(series: pd.Series, train_window: int, test_window: int, step: int) -> Generator[Tuple[pd.Series, pd.Series, int], None, None]:
-    """Generate train/test splits for walk-forward validation"""
+def train_test_splits(series: pd.Series, train_window: int, test_window: int, step: int):
+    """Generate train/test splits for walk-forward validation,
+    including the last (possibly shorter) test window."""
+
     start_idx = 0
     window_id = 0
+    n = len(series)
 
-    while start_idx + train_window + test_window <= len(series):
+    while True:
         train_end = start_idx + train_window
-        test_end = train_end + test_window
+
+        # Якщо train_end виходить за межі – стоп
+        if train_end >= n:
+            break
+
+        # Останній test_end — не далі, ніж кінець серії
+        test_end = min(train_end + test_window, n)
 
         train_split = series.iloc[start_idx:train_end]
         test_split = series.iloc[train_end:test_end]
 
-        yield train_split, test_split, window_id
+        # Видаємо навіть якщо test_split короткий, але не порожній
+        if len(test_split) > 0:
+            yield train_split, test_split, window_id
+
+        # Якщо ми дійшли до кінця — завершити цикл
+        if test_end == n:
+            break
 
         start_idx += step
         window_id += 1

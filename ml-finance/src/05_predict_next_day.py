@@ -45,6 +45,8 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 
+SIGNAL_THRESHOLD = 0.002
+
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """Create ML features from the dataset (updated to match 03_model_ml.py)"""
@@ -247,11 +249,15 @@ class MLModelPredictor:
 def load_model_metrics(ticker: str) -> Dict[str, float]:
     """Load directional accuracy metrics for each model"""
     import os
-    metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_metrics_summary.txt'))
+    # Try ML metrics file first
+    metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_ml_metrics_summary.txt'))
 
     if not metrics_path.exists():
-        logging.warning(f"Metrics file not found: {metrics_path}")
-        return {}
+        # Fallback to regular metrics file
+        metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_metrics_summary.txt'))
+        if not metrics_path.exists():
+            logging.warning(f"Metrics file not found: {metrics_path}")
+            return {}
 
     da_metrics = {}
     try:
@@ -264,11 +270,11 @@ def load_model_metrics(ticker: str) -> Dict[str, float]:
 
         for line in lines:
             line = line.strip()
-            if line.startswith('ML_') and '_Returns:' in line:
-                current_model = line.replace('_Returns:', '').replace('ML_', '').lower()
+            if line.endswith('_Returns:'):
+                current_model = line.replace('_Returns:', '').replace('ML_', '')
             elif line.startswith('Directional_Accuracy:') and current_model:
                 da_value = float(line.split(':')[1].strip())
-                da_metrics[current_model] = da_value
+                da_metrics[current_model.lower()] = da_value
                 current_model = None
 
     except Exception as e:
@@ -424,7 +430,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     da_metrics = load_model_metrics(ticker)
 
     # Overall recommendation based on threshold logic (only-long strategy)
-    threshold = 0.0003
+    threshold = SIGNAL_THRESHOLD
     if predicted_log_ret_ml > threshold:
         recommendation = "BUY"
         reason = f"ML prediction positive: {predicted_log_ret_ml:.6f} > {threshold}"
@@ -573,6 +579,21 @@ def main():
         print(f"RECOMMENDATION: {result['recommendation']}")
         print(f"Reason: {result['reason']}")
         print("="*60)
+
+        # Save key results to file for report generation
+        output_file = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_next_day_prediction.txt')
+        ensure_dirs(os.path.dirname(output_file))
+
+        with open(output_file, 'w') as f:
+            f.write(f"Best Model: {result['primary_model']}\n")
+            f.write(f"Predicted Return: {result['expected_return_pct']:.6f}\n")
+            f.write(f"Confidence: {da_metrics.get(result['primary_model'].lower(), 0):.6f}\n")
+            f.write(f"Recommendation: {result['recommendation']}\n")
+            f.write(f"Last Close: {result['last_close']:.2f}\n")
+            f.write(f"Last Date: {result['last_date']}\n")
+            f.write(f"Signal Threshold: {result['threshold']}\n")
+
+        logging.info(f"Next day prediction results saved to {output_file}")
 
         # Create plot
         output_dir = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_figures')

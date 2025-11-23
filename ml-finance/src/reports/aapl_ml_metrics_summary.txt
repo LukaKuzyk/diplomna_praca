@@ -2,32 +2,32 @@ ML Models Performance Summary
 ========================================
 
 ML_LINEAR_Returns:
-  RMSE: 0.006803
-  MAE: 0.005194
-  Directional_Accuracy: 0.881720
+  RMSE: 0.009150
+  MAE: 0.006922
+  Directional_Accuracy: 0.842365
 
 ML_RF_Returns:
-  RMSE: 0.011376
-  MAE: 0.007358
-  Directional_Accuracy: 0.813305
+  RMSE: 0.012313
+  MAE: 0.007614
+  Directional_Accuracy: 0.881773
 
 ML_XGB_Returns:
-  RMSE: 0.010325
-  MAE: 0.006485
-  Directional_Accuracy: 0.849785
+  RMSE: 0.011806
+  MAE: 0.007084
+  Directional_Accuracy: 0.875598
 
 ML_GBR_Returns:
-  RMSE: 0.010240
-  MAE: 0.006689
-  Directional_Accuracy: 0.846482
+  RMSE: 0.011230
+  MAE: 0.006991
+  Directional_Accuracy: 0.886792
 
 ML_LGBM_Returns:
-  RMSE: 0.010715
-  MAE: 0.006792
-  Directional_Accuracy: 0.844350
+  RMSE: 0.011969
+  MAE: 0.006958
+  Directional_Accuracy: 0.899038
 
 ML_CAT_Returns:
-  RMSE: 0.012302
-  MAE: 0.007900
-  Directional_Accuracy: 0.784483
+  RMSE: 0.014233
+  MAE: 0.008747
+  Directional_Accuracy: 0.842365
 

@@ -1,0 +1,7 @@
+Best Model: XGB
+Predicted Return: 1.992525
+Confidence: 0.875598
+Recommendation: BUY
+Last Close: 271.49
+Last Date: 2025-11-21
+Signal Threshold: 0.002
