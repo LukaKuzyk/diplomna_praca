@@ -314,11 +314,11 @@ def main():
 
     parser = argparse.ArgumentParser(description='Run ML models for log-return forecasting')
     parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
-    parser.add_argument('--train_window', type=int, default=756,
+    parser.add_argument('--train_window', type=int, default=1008,
                        help='Training window size (default: 252 ~1 year)')
-    parser.add_argument('--test_window', type=int, default=30,
+    parser.add_argument('--test_window', type=int, default=63,
                        help='Test window size (default: 30 ~1 month)')
-    parser.add_argument('--step', type=int, default=30,
+    parser.add_argument('--step', type=int, default=63,
                        help='Step size for walk-forward (default: 30 ~1 month)')
 
     args = parser.parse_args()

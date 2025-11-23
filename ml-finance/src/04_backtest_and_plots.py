@@ -574,7 +574,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Create backtesting plots and metrics')
-    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
     logging.info("Starting backtesting and visualization...")
