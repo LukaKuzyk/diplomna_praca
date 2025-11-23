@@ -48,7 +48,7 @@ def download_stock_data(ticker: str, years: int) -> pd.DataFrame:
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create target features: close, log_ret, rv_5, us10y_change"""
+    """Create target features: close, log_ret, rv_5, snp500_change"""
     logging.info("Creating features...")
 
     # Ensure we have the required columns
@@ -69,13 +69,13 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     # Realized volatility: sqrt( (log_ret.rolling(5).var()) * 252 )
     df_features['rv_5'] = np.sqrt(df_features['log_ret'].rolling(5).var() * 252)
 
-    # US10Y change (if available)
-    if 'us10y' in df_features.columns:
-        df_features['us10y_change'] = df_features['us10y'].pct_change(fill_method=None)
-        df_features['us10y_change'] = df_features['us10y_change'].fillna(0)  # Fill first NaN with 0
+    # SNP500 change (if available)
+    if 'snp500' in df_features.columns:
+        df_features['snp500_change'] = df_features['snp500'].pct_change(fill_method=None)
+        df_features['snp500_change'] = df_features['snp500_change'].fillna(0)  # Fill first NaN with 0
     else:
-        logging.warning("us10y column not found, setting us10y_change to 0")
-        df_features['us10y_change'] = 0.0
+        logging.warning("snp500 column not found, setting snp500_change to 0")
+        df_features['snp500_change'] = 0.0
 
     # Remove NA values (after feature calculation), drop only if essential features are NaN
     initial_rows = len(df_features)
@@ -107,25 +107,33 @@ def main():
     raw_data_path = f'data/{args.ticker.lower()}.csv'
     features_path = f'data/{args.ticker.lower()}_features.csv'
 
-    # Check if raw data is fresh
-    if is_file_fresh(raw_data_path, use_static_data=True):
+    # Check if raw data is fresh and has SNP500 data
+    force_redownload = False
+    if os.path.exists(raw_data_path):
+        # Check if file has old US10Y data or missing SNP500
+        temp_df = pd.read_csv(raw_data_path, nrows=1)
+        if 'us10y' in temp_df.columns or 'snp500' not in temp_df.columns:
+            force_redownload = True
+            logging.info("Old data format detected, forcing re-download...")
+
+    if is_file_fresh(raw_data_path, use_static_data=True) and not force_redownload:
         logging.info(f"Using static data file {raw_data_path}...")
         df = pd.read_csv(raw_data_path, index_col=0)
         df.index = pd.to_datetime(df.index, utc=True)
     else:
-        logging.info(f"Static data file {raw_data_path} not found, downloading...")
+        logging.info(f"Downloading fresh data for {args.ticker}...")
         # Download AAPL data
         df_aapl = download_stock_data(args.ticker, args.years)
 
-        # Download US10Y data (^TNX is 10-year Treasury yield)
-        df_us10y = download_stock_data('^TNX', args.years)
-        df_us10y = df_us10y.rename(columns={'Close': 'us10y'})
+        # Download SNP500 data (^GSPC is S&P 500 index)
+        df_snp500 = download_stock_data('^GSPC', args.years)
+        df_snp500 = df_snp500.rename(columns={'Close': 'snp500'})
 
-        # Merge on date index, keep all AAPL dates
-        df = pd.merge(df_aapl, df_us10y[['us10y']], left_index=True, right_index=True, how='left')
+        # Merge on date index, keep all stock dates
+        df = pd.merge(df_aapl, df_snp500[['snp500']], left_index=True, right_index=True, how='left')
 
-        # Forward fill US10Y values for non-trading days
-        df['us10y'] = df['us10y'].fillna(method='ffill').fillna(method='bfill')
+        # Forward fill SNP500 values for non-trading days
+        df['snp500'] = df['snp500'].fillna(method='ffill').fillna(method='bfill')
 
         # Save raw data
         os.makedirs(os.path.dirname(raw_data_path), exist_ok=True)

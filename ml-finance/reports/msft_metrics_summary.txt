@@ -1,4 +1,4 @@
-MSFT Forecasting Models - Final Metrics Summary
+Forecasting Models - Final Metrics Summary
 ==================================================
 
 ML_LINEAR_Returns:
@@ -7,24 +7,24 @@ ML_LINEAR_Returns:
   Directional_Accuracy: 0.840328
 
 ML_RF_Returns:
-  RMSE: 0.010678
-  MAE: 0.007533
-  Directional_Accuracy: 0.859213
+  RMSE: 0.010684
+  MAE: 0.007537
+  Directional_Accuracy: 0.860104
 
 ML_XGB_Returns:
-  RMSE: 0.010311
-  MAE: 0.007167
-  Directional_Accuracy: 0.867692
+  RMSE: 0.010309
+  MAE: 0.007165
+  Directional_Accuracy: 0.866940
 
 ML_GBR_Returns:
-  RMSE: 0.010351
-  MAE: 0.007186
-  Directional_Accuracy: 0.870504
+  RMSE: 0.010311
+  MAE: 0.007125
+  Directional_Accuracy: 0.870010
 
 Directional Strategy Performance:
-  Total Return: -0.218057
-  Annual Return: -0.101965
-  Annual Volatility: 0.221136
-  Sharpe Ratio: -0.461095
-  Max Drawdown: -0.357381
+  Total Return: -0.231955
+  Annual Return: -0.110857
+  Annual Volatility: 0.222488
+  Sharpe Ratio: -0.498259
+  Max Drawdown: -0.352982
   Number of Trades: 490

@@ -31,7 +31,7 @@ def load_all_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, Dict[str, 
 
     # Load base data
     import os
-    data_path = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', f'{ticker.lower()}_features.csv'))
+    data_path = Path(os.path.join(os.path.dirname(__file__), 'data', f'{ticker.lower()}_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
@@ -39,7 +39,7 @@ def load_all_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, Dict[str, 
     df_base.index = pd.to_datetime(df_base.index, utc=True)
 
     # Load prediction files
-    models_dir = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models'))
+    models_dir = Path(os.path.join(os.path.dirname(__file__), 'models'))
     prediction_files = {
         'baseline_close': models_dir / 'baseline_close_predictions.csv',
         'baseline_log_ret': models_dir / 'baseline_log_ret_predictions.csv',
@@ -103,9 +103,9 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     """Calculate directional strategy performance"""
     logging.info("Calculating strategy performance...")
 
-    # Align data
+    # Align data - convert log returns to simple returns for financial calculations
     data = pd.DataFrame({
-        'returns': returns,
+        'returns': np.exp(returns) - 1,  # Convert log returns to simple returns
         'ml_pred': ml_predictions
     }).dropna()
 
@@ -156,7 +156,7 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     }
 
 
-def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
+def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str = 'AAPL') -> None:
     if output_dir is None:
         output_dir = 'reports/figures'
     """Create all required plots"""
@@ -197,7 +197,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
                            plot_data[ci_upper_col],
                            alpha=0.2, label='95% Confidence Interval')
 
-    plt.title('AAPL Price vs ARIMA Forecast')
+    plt.title(f'{ticker.upper()} Price vs ARIMA Forecast')
     plt.xlabel('Date')
     plt.ylabel('Price (USD)')
     plt.legend()
@@ -239,7 +239,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
     # Add zero line
     plt.axhline(y=0, color='black', linestyle='-', alpha=0.5)
 
-    plt.title('AAPL Log Returns: Actual vs Forecasts')
+    plt.title(f'{ticker.upper()} Log Returns: Actual vs Forecasts')
     plt.xlabel('Date')
     plt.ylabel('Log Returns')
     plt.legend()
@@ -269,7 +269,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
         plt.plot(plot_data.index, plot_data[garch_vol_col],
                 label='GARCH Volatility Forecast', alpha=0.8, color='red', linestyle='--')
 
-    plt.title('AAPL Volatility: Realized vs GARCH Forecast')
+    plt.title(f'{ticker.upper()} Volatility: Realized vs GARCH Forecast')
     plt.xlabel('Date')
     plt.ylabel('Volatility')
     plt.legend()
@@ -287,8 +287,8 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
         plt.figure(figsize=fig_size)
 
         # Plot buy-and-hold for comparison
-        bh_returns = plot_data['log_ret'].dropna()
-        bh_equity = (1 + bh_returns).cumprod()
+        bh_log_returns = plot_data['log_ret'].dropna()
+        bh_equity = np.exp(bh_log_returns.cumsum())
         plt.plot(bh_equity.index, bh_equity.values, label='Buy & Hold', alpha=0.7, color='blue', linewidth=2)
 
         colors = ['green', 'red', 'orange', 'purple']
@@ -307,7 +307,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
                 if 'error' not in strategy_perf:
                     # Calculate cumulative returns
                     data_strategy = pd.DataFrame({
-                        'returns': plot_data['log_ret'],
+                        'returns': np.exp(plot_data['log_ret']) - 1,  # Convert to simple returns
                         'ml_pred': plot_data[ml_pred_col]
                     }).dropna()
 
@@ -337,7 +337,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None) -> None:
                         best_model = model_name
 
         if best_perf:
-            plt.title(f'AAPL Directional Strategies vs Buy & Hold\nBest: {best_model} (Sharpe: {best_perf.get("sharpe_ratio", 0):.2f})')
+            plt.title(f'{ticker.upper()} Directional Strategies vs Buy & Hold\nBest: {best_model} (Sharpe: {best_perf.get("sharpe_ratio", 0):.2f})')
             plt.xlabel('Date')
             plt.ylabel('Cumulative Returns')
             plt.legend()
@@ -461,14 +461,14 @@ def main():
         combined_df = combine_predictions(df_base, predictions)
 
         # Create plots and get strategy performance
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports', f'{args.ticker.lower()}_figures')
-        strategy_perf = create_plots(combined_df, output_dir)
+        output_dir = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_figures')
+        strategy_perf = create_plots(combined_df, output_dir, args.ticker)
 
         # Calculate final metrics
         final_metrics = calculate_final_metrics(combined_df)
 
         # Save metrics summary
-        output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports', f'{args.ticker.lower()}_metrics_summary.txt')
+        output_path = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_metrics_summary.txt')
         save_metrics_summary(final_metrics, strategy_perf, output_path)
 
         logging.info("Backtesting and visualization completed successfully!")

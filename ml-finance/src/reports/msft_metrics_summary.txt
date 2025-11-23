@@ -1,0 +1,45 @@
+Forecasting Models - Final Metrics Summary
+==================================================
+
+ARIMA_Returns:
+  RMSE: 0.014718
+  MAE: 0.010638
+  Directional_Accuracy: 0.535422
+
+ML_LINEAR_Returns:
+  RMSE: 0.006729
+  MAE: 0.005040
+  Directional_Accuracy: 0.896197
+
+ML_RF_Returns:
+  RMSE: 0.010464
+  MAE: 0.006988
+  Directional_Accuracy: 0.830561
+
+ML_XGB_Returns:
+  RMSE: 0.009981
+  MAE: 0.006524
+  Directional_Accuracy: 0.845915
+
+ML_GBR_Returns:
+  RMSE: 0.011990
+  MAE: 0.007608
+  Directional_Accuracy: 0.842708
+
+ML_LGBM_Returns:
+  RMSE: 0.009864
+  MAE: 0.006553
+  Directional_Accuracy: 0.852273
+
+ML_CAT_Returns:
+  RMSE: 0.010797
+  MAE: 0.007293
+  Directional_Accuracy: 0.825907
+
+Directional Strategy Performance:
+  Total Return: -0.135937
+  Annual Return: -0.051213
+  Annual Volatility: 0.218479
+  Sharpe Ratio: -0.234408
+  Max Drawdown: -0.285298
+  Number of Trades: 490

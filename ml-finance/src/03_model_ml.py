@@ -26,6 +26,20 @@ except ImportError:
     XGBOOST_AVAILABLE = False
     logging.warning("XGBoost not available, will use RandomForest as fallback")
 
+# Try to import LightGBM
+try:
+    from lightgbm import LGBMRegressor
+    LGBM_AVAILABLE = True
+except ImportError:
+    LGBM_AVAILABLE = False
+
+# Try to import CatBoost
+try:
+    from catboost import CatBoostRegressor
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
@@ -61,13 +75,13 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['rolling_skew_20'] = features_df['log_ret'].rolling(20).skew()
     features_df['rolling_kurt_20'] = features_df['log_ret'].rolling(20).kurt()
 
-    # US10Y rate change (assuming it's in df, or placeholder)
+    # SNP500 change (assuming it's in df, or placeholder)
     # If not available, this will be NaN
-    if 'us10y' in df.columns:
-        features_df['us10y_change'] = df['us10y'].pct_change()
+    if 'snp500' in df.columns:
+        features_df['snp500_change'] = df['snp500'].pct_change()
     else:
         # Placeholder, set to 0 or some value
-        features_df['us10y_change'] = 0.0
+        features_df['snp500_change'] = 0.0
 
     # Technical indicators
     # SMA(5) and SMA(20)
@@ -107,6 +121,30 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['stoch_k'] = 100 * (features_df['close'] - low14) / (high14 - low14)
     features_df['stoch_d'] = features_df['stoch_k'].rolling(3).mean()
 
+    # ATR
+    def calculate_atr(high, low, close, period=14):
+        tr = pd.concat([high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()], axis=1).max(axis=1)
+        atr = tr.rolling(period).mean()
+        return atr
+    features_df['atr_14'] = calculate_atr(features_df['High'], features_df['Low'], features_df['close'], 14)
+
+    # CCI
+    def calculate_cci(high, low, close, period=20):
+        tp = (high + low + close) / 3
+        sma_tp = tp.rolling(period).mean()
+        mad_tp = (tp - sma_tp).abs().rolling(period).mean()
+        cci = (tp - sma_tp) / (0.015 * mad_tp)
+        return cci
+    features_df['cci_20'] = calculate_cci(features_df['High'], features_df['Low'], features_df['close'], 20)
+
+    # Momentum
+    features_df['momentum_5'] = (features_df['close'] - features_df['close'].shift(5)) / features_df['close'].shift(5)
+    features_df['momentum_10'] = (features_df['close'] - features_df['close'].shift(10)) / features_df['close'].shift(10)
+
+    # Volume MA
+    features_df['volume_ma_5'] = features_df['volume'].rolling(5).mean()
+    features_df['volume_ma_20'] = features_df['volume'].rolling(20).mean()
+
     # Volatility feature (already exists as rv_5)
     features_df['volatility'] = features_df['rv_5']
 
@@ -134,7 +172,7 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
 
     # Random Forest
     models['rf'] = (RandomForestRegressor(
-        n_estimators=200,
+        n_estimators=100,
         max_depth=15,
         min_samples_split=5,
         min_samples_leaf=2,
@@ -144,7 +182,7 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
     # XGBoost (if available)
     if XGBOOST_AVAILABLE:
         models['xgb'] = (XGBRegressor(
-            n_estimators=300,
+            n_estimators=100,
             max_depth=5,
             learning_rate=0.05,
             subsample=0.8,
@@ -155,11 +193,16 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
     else:
         logging.warning("XGBoost not available, skipping XGBoost model")
 
-    # Support Vector Regressor
-    # models['svr'] = (SVR(kernel='rbf', C=1.0, epsilon=0.1), StandardScaler())
-
     # Gradient Boosting Regressor
-    models['gbr'] = (GradientBoostingRegressor(n_estimators=200, max_depth=5, learning_rate=0.1, random_state=random_state), StandardScaler())
+    models['gbr'] = (GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    # LightGBM (if available)
+    if LGBM_AVAILABLE:
+        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    # CatBoost (if available)
+    if CATBOOST_AVAILABLE:
+        models['cat'] = (CatBoostRegressor(iterations=100, depth=5, learning_rate=0.05, random_state=random_state, verbose=False), StandardScaler())
 
     return models
 
@@ -169,7 +212,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     logging.info("Starting ML walk-forward validation")
 
     # Load data
-    data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', f'{ticker.lower()}_features.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'data', f'{ticker.lower()}_features.csv')
     df = pd.read_csv(data_path, index_col=0)
     df.index = pd.to_datetime(df.index, utc=True)
 
@@ -178,18 +221,13 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
 
     # Define feature columns (exclude target and other non-feature columns)
     feature_cols = [
-        'log_ret_lag_1',
-        # 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5',
-        'log_ret_lag_7',
-        # 'log_ret_lag_10',
-        'log_ret_lag_14',
-        # 'log_ret_lag_15', 'log_ret_lag_20',
-        'log_ret_lag_21', 'log_ret_lag_30',
-        # 'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
-        # 'rolling_skew_20', 'rolling_kurt_20',
-        # 'us10y_change',
+        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5', 'log_ret_lag_7', 'log_ret_lag_10', 'log_ret_lag_14', 'log_ret_lag_15', 'log_ret_lag_20', 'log_ret_lag_21', 'log_ret_lag_30',
+        'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
+        'rolling_skew_20', 'rolling_kurt_20',
+        'snp500_change',
         'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
         'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
+        'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',
         'day_of_week', 'month'
     ]
 
@@ -290,7 +328,7 @@ def main():
     results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step, args.ticker)
 
     # Save results
-    output_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models', f'{args.ticker.lower()}_ml_predictions.csv')
+    output_path = os.path.join(os.path.dirname(__file__), 'models', f'{args.ticker.lower()}_ml_predictions.csv')
     save_predictions_csv(output_path, results_df)
 
     logging.info("ML modeling completed")
