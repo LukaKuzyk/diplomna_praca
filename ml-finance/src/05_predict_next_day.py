@@ -22,20 +22,32 @@ from utils import (
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
-# Try to import XGBoost, fallback to RandomForest
+# Try to import all ML libraries
 try:
     from xgboost import XGBRegressor
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
-    logging.warning("XGBoost not available, will use RandomForest as fallback")
 
-from sklearn.ensemble import RandomForestRegressor
+try:
+    from lightgbm import LGBMRegressor
+    LGBM_AVAILABLE = True
+except ImportError:
+    LGBM_AVAILABLE = False
+
+try:
+    from catboost import CatBoostRegressor
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create ML features from the dataset (same as in 03_model_ml.py)"""
+    """Create ML features from the dataset (updated to match 03_model_ml.py)"""
     logging.info("Creating ML features...")
 
     features_df = df.copy()
@@ -51,8 +63,23 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             features_df.index = pd.to_datetime(features_df.index)
 
     # Lag features for log_ret
-    for lag in [1, 2, 5, 10, 15, 20]:
+    for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
+
+    # Volume features
+    features_df['volume'] = df['Volume']
+    for lag in [1, 2, 5]:
+        features_df[f'volume_lag_{lag}'] = features_df['volume'].shift(lag)
+
+    # Rolling statistics
+    features_df['rolling_skew_20'] = features_df['log_ret'].rolling(20).skew()
+    features_df['rolling_kurt_20'] = features_df['log_ret'].rolling(20).kurt()
+
+    # SNP500 change (assuming it's in df, or placeholder)
+    if 'snp500' in df.columns:
+        features_df['snp500_change'] = df['snp500'].pct_change()
+    else:
+        features_df['snp500_change'] = 0.0
 
     # Technical indicators
     # SMA(5) and SMA(20)
@@ -92,6 +119,30 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['stoch_k'] = 100 * (features_df['close'] - low14) / (high14 - low14)
     features_df['stoch_d'] = features_df['stoch_k'].rolling(3).mean()
 
+    # ATR
+    def calculate_atr(high, low, close, period=14):
+        tr = pd.concat([high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()], axis=1).max(axis=1)
+        atr = tr.rolling(period).mean()
+        return atr
+    features_df['atr_14'] = calculate_atr(features_df['High'], features_df['Low'], features_df['close'], 14)
+
+    # CCI
+    def calculate_cci(high, low, close, period=20):
+        tp = (high + low + close) / 3
+        sma_tp = tp.rolling(period).mean()
+        mad_tp = (tp - sma_tp).abs().rolling(period).mean()
+        cci = (tp - sma_tp) / (0.015 * mad_tp)
+        return cci
+    features_df['cci_20'] = calculate_cci(features_df['High'], features_df['Low'], features_df['close'], 20)
+
+    # Momentum
+    features_df['momentum_5'] = (features_df['close'] - features_df['close'].shift(5)) / features_df['close'].shift(5)
+    features_df['momentum_10'] = (features_df['close'] - features_df['close'].shift(10)) / features_df['close'].shift(10)
+
+    # Volume MA
+    features_df['volume_ma_5'] = features_df['volume'].rolling(5).mean()
+    features_df['volume_ma_20'] = features_df['volume'].rolling(20).mean()
+
     # Volatility feature (already exists as rv_5)
     features_df['volatility'] = features_df['rv_5']
 
@@ -99,56 +150,131 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['day_of_week'] = features_df.index.dayofweek  # 0=Monday, 4=Friday
     features_df['month'] = features_df.index.month  # 1-12
 
-    # Remove rows with NaN values (due to lagging and rolling windows)
+    # Fill NaN in features with 0
+    features_df = features_df.fillna(0)
+
+    # Remove rows with NaN values in essential columns
     initial_rows = len(features_df)
-    features_df = features_df.dropna()
+    features_df = features_df.dropna(subset=['close', 'log_ret', 'rv_5'])
     logging.info(f"Removed {initial_rows - len(features_df)} rows due to NaN values")
 
     return features_df
 
 
-class MLModel:
-    """ML model wrapper with XGBoost/RandomForest fallback (same as in 03_model_ml.py)"""
+def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
+    """Get dictionary of ML models to compare (same as in 03_model_ml.py)"""
+    models = {}
 
-    def __init__(self, use_xgboost: bool = True, random_state: int = 42):
-        self.use_xgboost = use_xgboost and XGBOOST_AVAILABLE
+    # Linear Regression (baseline)
+    models['linear'] = (LinearRegression(), StandardScaler())
+
+    # Random Forest
+    models['rf'] = (RandomForestRegressor(
+        n_estimators=100,
+        max_depth=15,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        random_state=random_state
+    ), StandardScaler())
+
+    # XGBoost (if available)
+    if XGBOOST_AVAILABLE:
+        models['xgb'] = (XGBRegressor(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state
+        ), StandardScaler())
+
+    # Gradient Boosting Regressor
+    models['gbr'] = (GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    # LightGBM (if available)
+    if LGBM_AVAILABLE:
+        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    # CatBoost (if available)
+    if CATBOOST_AVAILABLE:
+        models['cat'] = (CatBoostRegressor(iterations=100, depth=5, learning_rate=0.05, random_state=random_state, verbose=False), StandardScaler())
+
+    return models
+
+
+class MLModelPredictor:
+    """ML model predictor with multiple models"""
+
+    def __init__(self, random_state: int = 42):
         self.random_state = random_state
-        self.model = None
-        self.scaler = StandardScaler()
+        self.models = {}
+        self.scalers = {}
 
-        if self.use_xgboost:
-            logging.info("Using XGBoost model")
-            self.model = XGBRegressor(
-                n_estimators=500,
-                max_depth=6,
-                learning_rate=0.03,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=random_state
-            )
-        else:
-            logging.info("Using RandomForest model (XGBoost not available)")
-            self.model = RandomForestRegressor(
-                n_estimators=500,
-                max_depth=10,
-                min_samples_split=5,
-                min_samples_leaf=2,
-                random_state=random_state
-            )
+        # Initialize all available models
+        all_models = get_ml_models(random_state)
+        for model_name, (model, scaler) in all_models.items():
+            self.models[model_name] = model
+            self.scalers[model_name] = scaler
+            logging.info(f"Initialized {model_name.upper()} model")
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
-        """Fit the model"""
-        # Scale features
-        X_scaled = self.scaler.fit_transform(X)
+        """Fit all models"""
+        for model_name, model in self.models.items():
+            # Scale features
+            X_scaled = self.scalers[model_name].fit_transform(X)
 
-        # Fit model
-        self.model.fit(X_scaled, y)
-        logging.info("Model fitted successfully")
+            # Fit model
+            model.fit(X_scaled, y)
+            logging.info(f"{model_name.upper()} model fitted successfully")
 
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """Make predictions"""
-        X_scaled = self.scaler.transform(X)
-        return self.model.predict(X_scaled)
+    def predict(self, X: pd.DataFrame, model_name: str = 'xgb') -> float:
+        """Make prediction with specific model"""
+        if model_name not in self.models:
+            raise ValueError(f"Model {model_name} not available")
+
+        X_scaled = self.scalers[model_name].transform(X)
+        prediction = self.models[model_name].predict(X_scaled)[0]
+        return prediction
+
+    def predict_all(self, X: pd.DataFrame) -> Dict[str, float]:
+        """Make predictions with all models"""
+        predictions = {}
+        for model_name in self.models.keys():
+            predictions[model_name] = self.predict(X, model_name)
+        return predictions
+
+
+def load_model_metrics(ticker: str) -> Dict[str, float]:
+    """Load directional accuracy metrics for each model"""
+    import os
+    metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_metrics_summary.txt'))
+
+    if not metrics_path.exists():
+        logging.warning(f"Metrics file not found: {metrics_path}")
+        return {}
+
+    da_metrics = {}
+    try:
+        with open(metrics_path, 'r') as f:
+            content = f.read()
+
+        # Parse DA values for each model
+        lines = content.split('\n')
+        current_model = None
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith('ML_') and '_Returns:' in line:
+                current_model = line.replace('_Returns:', '').replace('ML_', '').lower()
+            elif line.startswith('Directional_Accuracy:') and current_model:
+                da_value = float(line.split(':')[1].strip())
+                da_metrics[current_model] = da_value
+                current_model = None
+
+    except Exception as e:
+        logging.warning(f"Error loading metrics: {e}")
+
+    return da_metrics
 
 
 class BaselineModels:
@@ -220,13 +346,13 @@ class BaselineModels:
             return 0.0
 
 
-def predict_next_day() -> Dict[str, any]:
+def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     """Predict next day log-return and provide recommendation using all models"""
-    logging.info("Starting next day prediction with all models...")
+    logging.info(f"Starting next day prediction for {ticker} with all models...")
 
     # Load data
     import os
-    data_path = Path(os.path.join(os.path.dirname(__file__), '..', 'data', 'aapl_features.csv'))
+    data_path = Path(os.path.join(os.path.dirname(__file__), 'data', f'{ticker.lower()}_features.csv'))
     if not data_path.exists():
         raise FileNotFoundError(f"Data file not found: {data_path}")
 
@@ -236,18 +362,24 @@ def predict_next_day() -> Dict[str, any]:
     # Create features
     df_features = create_features(df)
 
-    # Define feature columns for ML
+    # Define feature columns for ML (same as in 03_model_ml.py)
     feature_cols = [
-        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_5', 'log_ret_lag_10', 'log_ret_lag_15', 'log_ret_lag_20',
+        'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5', 'log_ret_lag_7', 'log_ret_lag_10', 'log_ret_lag_14', 'log_ret_lag_15', 'log_ret_lag_20', 'log_ret_lag_21', 'log_ret_lag_30',
+        'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
+        'rolling_skew_20', 'rolling_kurt_20',
+        'snp500_change',
         'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
         'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
+        'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',
         'day_of_week', 'month'
     ]
 
     # Check if all features exist
     missing_features = [col for col in feature_cols if col not in df_features.columns]
     if missing_features:
-        raise ValueError(f"Missing features: {missing_features}")
+        logging.warning(f"Missing features: {missing_features}")
+        # Remove missing features from the list
+        feature_cols = [col for col in feature_cols if col in df_features.columns]
 
     # Use all available data for training
     train_features = df_features[feature_cols]
@@ -259,170 +391,140 @@ def predict_next_day() -> Dict[str, any]:
 
     # Initialize models
     baseline_models = BaselineModels()
-    ml_model = MLModel(use_xgboost=XGBOOST_AVAILABLE)
+    ml_predictor = MLModelPredictor()
 
     # Fit models
-    ml_model.fit(train_features, train_target)
-    arima_model = baseline_models.fit_arima(train_target, 'log_ret')
-    garch_model = baseline_models.fit_garch(train_target)
+    ml_predictor.fit(train_features, train_target)
 
     # Prepare features for next day prediction
     last_row = df_features.iloc[-1]
     next_day_features = pd.DataFrame([last_row[feature_cols].values], columns=feature_cols)
 
-    # Predictions
-    predicted_log_ret_ml = ml_model.predict(next_day_features)[0]
-    predicted_log_ret_arima = baseline_models.forecast_arima(arima_model)
-    predicted_log_ret_naive = baseline_models.naive_forecast(train_target, 'log_ret')
-    predicted_log_ret_garch = baseline_models.forecast_garch(garch_model)
+    # Get predictions from all ML models
+    ml_predictions = ml_predictor.predict_all(next_day_features)
+
+    # Get the best model prediction (using the one with highest directional accuracy from backtesting)
+    # For simplicity, use XGB if available, otherwise the first available
+    primary_model = 'xgb' if 'xgb' in ml_predictions else list(ml_predictions.keys())[0]
+    predicted_log_ret_ml = ml_predictions[primary_model]
 
     # Get last known close price
     last_close = df_features['close'].iloc[-1]
 
-    # Calculate predicted close prices
-    predicted_close_ml = last_close * np.exp(predicted_log_ret_ml)
-    predicted_close_arima = last_close * np.exp(predicted_log_ret_arima)
-    predicted_close_naive = last_close * np.exp(predicted_log_ret_naive)
-    predicted_close_garch = last_close * np.exp(predicted_log_ret_garch)
+    # Calculate predicted close prices for all ML models
+    predictions = {}
+    for model_name, pred_ret in ml_predictions.items():
+        pred_close = last_close * np.exp(pred_ret)
+        predictions[f'ML_{model_name.upper()}'] = {'log_ret': pred_ret, 'close': pred_close}
 
-    # Collect predictions
-    predictions = {
-        'ML': {'log_ret': predicted_log_ret_ml, 'close': predicted_close_ml},
-        'ARIMA': {'log_ret': predicted_log_ret_arima, 'close': predicted_close_arima},
-        'Naive': {'log_ret': predicted_log_ret_naive, 'close': predicted_close_naive},
-        'GARCH': {'log_ret': predicted_log_ret_garch, 'close': predicted_close_garch}
-    }
+    # Add main ML prediction
+    predictions['ML'] = {'log_ret': predicted_log_ret_ml, 'close': last_close * np.exp(predicted_log_ret_ml)}
 
-    # Overall recommendation based on ML (primary model)
-    if predicted_log_ret_ml > 0.001:
-        recommendation = "КУПУВАТИ (Buy)"
-        reason = f"Прогноз ML позитивний: {predicted_log_ret_ml:.6f}"
-    elif predicted_log_ret_ml < -0.001:
-        recommendation = "ПРОДАВАТИ (Sell)"
-        reason = f"Прогноз ML негативний: {predicted_log_ret_ml:.6f}"
+    # Load directional accuracy metrics
+    da_metrics = load_model_metrics(ticker)
+
+    # Overall recommendation based on threshold logic (only-long strategy)
+    threshold = 0.0003
+    if predicted_log_ret_ml > threshold:
+        recommendation = "BUY"
+        reason = f"ML prediction positive: {predicted_log_ret_ml:.6f} > {threshold}"
     else:
-        recommendation = "ТРИМАТИ (Hold)"
-        reason = f"Прогноз ML нейтральний: {predicted_log_ret_ml:.6f}"
+        recommendation = "HOLD/CASH"
+        reason = f"ML prediction weak: {predicted_log_ret_ml:.6f} ≤ {threshold}"
 
     expected_return_pct = predicted_log_ret_ml * 100
 
     result = {
+        'ticker': ticker.upper(),
         'last_date': df_features.index[-1].strftime('%Y-%m-%d'),
         'last_close': last_close,
         'predictions': predictions,
+        'da_metrics': da_metrics,
         'recommendation': recommendation,
         'reason': reason,
         'expected_return_pct': expected_return_pct,
-        'historical_data': df_features[['close']].tail(60)  # Last 60 days for plotting
+        'threshold': threshold,
+        'primary_model': primary_model.upper(),
+        'historical_data': df_features[['close']].tail(30)  # Last 30 days (1 month) for plotting
     }
 
-    logging.info(f"Prediction completed: {result}")
+    logging.info(f"Prediction completed for {ticker}: {result['recommendation']}")
     return result
 
 
 def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/figures') -> None:
-    """Create plot showing historical predictions vs actual and next day predictions"""
+    """Create plot showing monthly price chart with next day ML predictions"""
+    import os
     ensure_dirs(output_dir)
     logging.info(f"Creating prediction plot in {output_dir}...")
 
+    ticker = result['ticker']
     # Load historical predictions
-    ml_pred_path = Path('models/ml_predictions.csv')
-    baseline_pred_path = Path('models/baseline_log_ret_predictions.csv')
+    ml_pred_path = Path(os.path.join(os.path.dirname(__file__), 'models', f'{ticker.lower()}_ml_predictions.csv'))
 
-    historical_data = result['historical_data']
+    # Get last 30 days of historical data (1 month)
+    historical_data = result['historical_data'].tail(30)  # Last 30 days
     predictions = result['predictions']
     last_date = pd.to_datetime(result['last_date'])
     next_date = last_date + pd.Timedelta(days=1)
 
-    # Set up the plotting area
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12), sharex=True)
+    # Set up the plotting area - single plot focused on price
+    fig, ax = plt.subplots(1, 1, figsize=(14, 8))
 
-    # Plot 1: Historical price
-    ax1.plot(historical_data.index, historical_data['close'], label='Історична ціна (Historical Price)', color='blue', linewidth=2)
+    # Plot historical price for the last month
+    ax.plot(historical_data.index, historical_data['close'],
+            label='Historical Price', color='blue', linewidth=2)
 
-    # Load and plot historical ML predictions (last 30 days)
-    if ml_pred_path.exists():
-        ml_preds = pd.read_csv(ml_pred_path)
-        ml_preds['date'] = pd.to_datetime(ml_preds['date'], utc=True)
-        ml_preds.set_index('date', inplace=True)
+    # Add current price point
+    ax.scatter(last_date, result['last_close'], color='blue', s=50, zorder=5,
+               label=f'Today: ${result["last_close"]:.2f}')
 
-        # Get last 30 days of predictions
-        recent_preds = ml_preds.tail(30)
+    # Plot next day predictions as prominent dots
+    ml_predictions = {k: v for k, v in predictions.items() if k.startswith('ML_')}
 
-        # Plot predicted vs actual prices for historical data
-        for idx, row in recent_preds.iterrows():
-            if idx in historical_data.index:
-                actual_price = historical_data.loc[idx, 'close']
-                # Calculate predicted price from log_ret
-                prev_price = historical_data.loc[:idx].iloc[-2]['close'] if len(historical_data.loc[:idx]) > 1 else actual_price
-                for col in recent_preds.columns:
-                    if col.startswith('y_pred_'):
-                        pred_ret = row[col]
-                        pred_price = prev_price * np.exp(pred_ret)
-                        model_name = col.replace('y_pred_', '').upper()
-                        color = {'LINEAR': 'cyan', 'RF': 'magenta', 'XGB': 'red'}.get(model_name, 'gray')
-                        ax1.scatter(idx, pred_price, color=color, alpha=0.6, s=20)
-                        ax1.scatter(idx, actual_price, color='blue', alpha=0.6, s=20)
+    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta']
+    markers = ['o', 's', '^', 'D', 'v', 'p', '*']
 
-    # Plot next day predictions as points
-    colors = {'ML': 'red', 'ARIMA': 'green', 'Naive': 'orange', 'GARCH': 'purple'}
-    markers = {'ML': 'o', 'ARIMA': 's', 'Naive': '^', 'GARCH': 'D'}
+    for i, (model_name, pred) in enumerate(ml_predictions.items()):
+        color = colors[i % len(colors)]
+        marker = markers[i % len(markers)]
 
-    for model, pred in predictions.items():
-        ax1.scatter(next_date, pred['close'], color=colors[model], marker=markers[model], s=100,
-                   label=f'{model} прогноз: ${pred["close"]:.2f}', zorder=5)
+        # Plot prediction point
+        ax.scatter(next_date, pred['close'], color=color, marker=marker, s=150, zorder=6,
+                  label=f'{model_name}: ${pred["close"]:.2f}')
 
-    ax1.axvline(x=last_date, color='black', linestyle='--', alpha=0.7, label='Сьогодні (Today)')
-    ax1.set_title('AAPL: Історична ціна та прогнози (Historical Price and Predictions)', fontsize=14)
-    ax1.set_ylabel('Ціна закриття (Close Price, USD)', fontsize=12)
-    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax1.grid(True, alpha=0.3)
+        # Add arrow from current price to prediction
+        ax.annotate('', xy=(next_date, pred['close']), xytext=(last_date, result['last_close']),
+                   arrowprops=dict(arrowstyle='->', color=color, alpha=0.7, linewidth=2))
 
-    # Plot 2: Returns predictions vs actual
-    if ml_pred_path.exists() and baseline_pred_path.exists():
-        ml_preds = pd.read_csv(ml_pred_path)
-        ml_preds['date'] = pd.to_datetime(ml_preds['date'], utc=True)
-        ml_preds.set_index('date', inplace=True)
+    # Add recommendation text
+    recommendation = result['recommendation']
+    if 'BUY' in recommendation:
+        rec_color = 'green'
+        rec_symbol = '↗️'
+    else:
+        rec_color = 'orange'
+        rec_symbol = '➡️'
 
-        baseline_preds = pd.read_csv(baseline_pred_path)
-        baseline_preds['date'] = pd.to_datetime(baseline_preds['date'], utc=True)
-        baseline_preds.set_index('date', inplace=True)
+    ax.text(0.02, 0.98, f'{rec_symbol} {recommendation}',
+            transform=ax.transAxes, fontsize=14, fontweight='bold',
+            verticalalignment='top', bbox=dict(boxstyle='round,pad=0.3',
+            facecolor=rec_color, alpha=0.1))
 
-        # Get last 30 days
-        recent_ml = ml_preds.tail(30)
-        recent_baseline = baseline_preds.tail(30)
+    # Add expected return
+    expected_return = result['expected_return_pct']
+    return_color = 'green' if expected_return > 0 else 'red'
+    ax.text(0.02, 0.90, f'Expected Return: {expected_return:.2f}%',
+            transform=ax.transAxes, fontsize=12, color=return_color,
+            verticalalignment='top')
 
-        # Plot actual returns
-        actual_returns = historical_data['close'].pct_change().tail(30)
-        ax2.plot(actual_returns.index, actual_returns.values, label='Фактичні дохідності (Actual Returns)', color='blue', linewidth=2)
-
-        # Plot predicted returns
-        for idx, row in recent_ml.iterrows():
-            for col in recent_ml.columns:
-                if col.startswith('y_pred_'):
-                    pred_ret = row[col]
-                    model_name = col.replace('y_pred_', '').upper()
-                    color = {'LINEAR': 'cyan', 'RF': 'magenta', 'XGB': 'red'}.get(model_name, 'gray')
-                    ax2.scatter(idx, pred_ret, color=color, alpha=0.6, s=20, label=f'{model_name} Pred' if idx == recent_ml.index[0] else "")
-
-        # Plot ARIMA predictions
-        if 'y_pred_arima' in recent_baseline.columns:
-            arima_preds = recent_baseline['y_pred_arima'].tail(30)
-            ax2.scatter(arima_preds.index, arima_preds.values, color='green', alpha=0.6, s=20, label='ARIMA Pred')
-
-        # Plot GARCH predictions
-        if 'y_pred_garch_mean' in recent_baseline.columns:
-            garch_preds = recent_baseline['y_pred_garch_mean'].tail(30)
-            ax2.scatter(garch_preds.index, garch_preds.values, color='purple', alpha=0.6, s=20, label='GARCH Pred')
-
-    ax2.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-    ax2.axvline(x=last_date, color='black', linestyle='--', alpha=0.7)
-    ax2.set_title('Доходності: Фактичні vs Прогнози (Returns: Actual vs Predictions)', fontsize=14)
-    ax2.set_xlabel('Дата (Date)', fontsize=12)
-    ax2.set_ylabel('Доходність (Return)', fontsize=12)
-    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax2.grid(True, alpha=0.3)
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.axvline(x=last_date, color='black', linestyle='--', alpha=0.7, label='Today')
+    ax.set_title(f'{ticker}: Monthly Price Chart with Next Day Predictions', fontsize=16, fontweight='bold')
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Close Price (USD)', fontsize=12)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     plt.xticks(rotation=45)
 
     plt.tight_layout()
@@ -435,33 +537,46 @@ def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/fi
 
 def main():
     """Main function"""
+    import os
     set_seed(42)
     setup_logging()
 
-    parser = argparse.ArgumentParser(description='Predict next day AAPL return and provide recommendation')
+    parser = argparse.ArgumentParser(description='Predict next day stock return and provide recommendation')
+    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
-    logging.info("Predicting next day AAPL movement...")
+    logging.info(f"Predicting next day {args.ticker} movement...")
 
     try:
-        result = predict_next_day()
+        result = predict_next_day(args.ticker)
 
         # Print results
         print("\n" + "="*60)
-        print("ПРОГНОЗ НА НАСТУПНИЙ ДЕНЬ AAPL")
+        print(f"NEXT DAY PREDICTION FOR {result['ticker']}")
         print("="*60)
-        print(f"Остання дата: {result['last_date']}")
-        print(f"Остання ціна закриття: ${result['last_close']:.2f}")
-        print("\nПрогнози моделей:")
+        print(f"Last Date: {result['last_date']}")
+        print(f"Last Close Price: ${result['last_close']:.2f}")
+        print(f"Primary Model: {result['primary_model']}")
+        print(f"Signal Threshold: {result['threshold']}")
+        print("\nML Model Predictions:")
+        da_metrics = result.get('da_metrics', {})
         for model, pred in result['predictions'].items():
-            print(f"  {model}: Ціна ${pred['close']:.2f}, Доход {pred['log_ret']:.6f}")
-        print(f"\nОчікуваний дохід (ML): {result['expected_return_pct']:.2f}%")
-        print(f"РЕКОМЕНДАЦІЯ: {result['recommendation']}")
-        print(f"Причина: {result['reason']}")
+            if model.startswith('ML_'):
+                model_key = model.replace('ML_', '').lower()
+                da_value = da_metrics.get(model_key, 'N/A')
+                if da_value != 'N/A':
+                    da_str = f"DA: {da_value:.1%}"
+                else:
+                    da_str = "DA: N/A"
+                print(f"  {model}: Price ${pred['close']:.2f}, Return {pred['log_ret']:.6f}, {da_str}")
+        print(f"\nExpected Return (ML): {result['expected_return_pct']:.2f}%")
+        print(f"RECOMMENDATION: {result['recommendation']}")
+        print(f"Reason: {result['reason']}")
         print("="*60)
 
         # Create plot
-        create_prediction_plot(result)
+        output_dir = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_figures')
+        create_prediction_plot(result, output_dir)
 
         logging.info("Next day prediction and plot completed successfully!")
 
