@@ -7,29 +7,131 @@ ARIMA_Returns:
   Directional_Accuracy: 0.539617
 
 ML_LINEAR_Returns:
-  RMSE: 0.010683
-  MAE: 0.007439
-  Directional_Accuracy: 0.856536
+  RMSE: 0.008522
+  MAE: 0.006427
+  Directional_Accuracy: 0.844810
 
 ML_RF_Returns:
-  RMSE: 0.013034
-  MAE: 0.008415
-  Directional_Accuracy: 0.834409
+  RMSE: 0.011659
+  MAE: 0.007749
+  Directional_Accuracy: 0.799587
 
 ML_XGB_Returns:
-  RMSE: 0.013602
-  MAE: 0.008222
-  Directional_Accuracy: 0.848936
+  RMSE: 0.011265
+  MAE: 0.007277
+  Directional_Accuracy: 0.832640
 
 ML_GBR_Returns:
-  RMSE: 0.011891
-  MAE: 0.007896
-  Directional_Accuracy: 0.860192
+  RMSE: 0.011024
+  MAE: 0.007347
+  Directional_Accuracy: 0.818750
 
-Directional Strategy Performance:
-  Total Return: 0.323632
-  Annual Return: 0.184048
-  Annual Volatility: 0.279826
-  Sharpe Ratio: 0.657722
-  Max Drawdown: -0.191085
-  Number of Trades: 490
+ML_LGBM_Returns:
+  RMSE: 0.011371
+  MAE: 0.007433
+  Directional_Accuracy: 0.822863
+
+ML_CAT_Returns:
+  RMSE: 0.012521
+  MAE: 0.008259
+  Directional_Accuracy: 0.801877
+
+Strategy Performance Metrics:
+------------------------------
+
+CAT Strategies:
+  Directional (Long/Short):
+    Total Return: -0.321241
+    Annual Return: -0.159700
+    Annual Volatility: 0.278483
+    Sharpe Ratio: -0.573462
+    Max Drawdown: -0.437521
+    Number of Trades: 490
+  Only-Long:
+    Total Return: 0.049861
+    Annual Return: 0.042678
+    Annual Volatility: 0.187479
+    Sharpe Ratio: 0.227643
+    Max Drawdown: -0.273446
+    Number of Trades: 490
+
+GBR Strategies:
+  Directional (Long/Short):
+    Total Return: -0.127433
+    Annual Return: -0.029997
+    Annual Volatility: 0.280749
+    Sharpe Ratio: -0.106845
+    Max Drawdown: -0.400141
+    Number of Trades: 490
+  Only-Long:
+    Total Return: 0.191759
+    Annual Return: 0.108377
+    Annual Volatility: 0.190172
+    Sharpe Ratio: 0.569888
+    Max Drawdown: -0.285700
+    Number of Trades: 490
+
+LGBM Strategies:
+  Directional (Long/Short):
+    Total Return: -0.096236
+    Annual Return: -0.011743
+    Annual Volatility: 0.281375
+    Sharpe Ratio: -0.041733
+    Max Drawdown: -0.322114
+    Number of Trades: 490
+  Only-Long:
+    Total Return: 0.199368
+    Annual Return: 0.110966
+    Annual Volatility: 0.186502
+    Sharpe Ratio: 0.594987
+    Max Drawdown: -0.223116
+    Number of Trades: 490
+
+LINEAR Strategies:
+  Directional (Long/Short):
+    Total Return: -0.130378
+    Annual Return: -0.031618
+    Annual Volatility: 0.280796
+    Sharpe Ratio: -0.112600
+    Max Drawdown: -0.352911
+    Number of Trades: 490
+  Only-Long:
+    Total Return: 0.191470
+    Annual Return: 0.107082
+    Annual Volatility: 0.183649
+    Sharpe Ratio: 0.583082
+    Max Drawdown: -0.226431
+    Number of Trades: 490
+
+RF Strategies:
+  Directional (Long/Short):
+    Total Return: -0.366520
+    Annual Return: -0.195399
+    Annual Volatility: 0.277635
+    Sharpe Ratio: -0.703798
+    Max Drawdown: -0.498508
+    Number of Trades: 490
+  Only-Long:
+    Total Return: -0.030688
+    Annual Return: 0.002299
+    Annual Volatility: 0.190899
+    Sharpe Ratio: 0.012043
+    Max Drawdown: -0.364591
+    Number of Trades: 490
+
+XGB Strategies:
+  Directional (Long/Short):
+    Total Return: -0.226592
+    Annual Return: -0.091845
+    Annual Volatility: 0.281246
+    Sharpe Ratio: -0.326565
+    Max Drawdown: -0.366738
+    Number of Trades: 490
+  Only-Long:
+    Total Return: 0.094325
+    Annual Return: 0.064117
+    Annual Volatility: 0.188063
+    Sharpe Ratio: 0.340935
+    Max Drawdown: -0.269486
+    Number of Trades: 490
+

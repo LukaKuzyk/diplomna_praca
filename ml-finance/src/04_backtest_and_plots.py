@@ -98,10 +98,56 @@ def combine_predictions(df_base: pd.DataFrame, predictions: Dict[str, pd.DataFra
     return combined_df
 
 
+def generate_signals_with_threshold(predictions: pd.Series, threshold: float = 0.0003) -> pd.Series:
+    """
+    Generate trading signals from ML predictions with threshold.
+
+    Args:
+        predictions: ML predicted log returns
+        threshold: Minimum absolute prediction value to generate signal
+
+    Returns:
+        Series of signals: 1 (long), -1 (short), 0 (neutral)
+    """
+    signals = pd.Series(0, index=predictions.index)
+    signals[predictions > threshold] = 1
+    signals[predictions < -threshold] = -1
+    return signals
+
+
+def generate_only_long_signals(predictions: pd.Series, threshold: float = 0.0003) -> pd.Series:
+    """
+    Generate only-long trading signals from ML predictions with threshold.
+
+    Args:
+        predictions: ML predicted log returns
+        threshold: Minimum prediction value to generate long signal
+
+    Returns:
+        Series of signals: 1 (long), 0 (neutral/cash)
+    """
+    signals = pd.Series(0, index=predictions.index)
+    signals[predictions > threshold] = 1
+    return signals
+
+
 def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series,
-                                transaction_cost: float = 0.0) -> Dict[str, float]:
-    """Calculate directional strategy performance"""
-    logging.info("Calculating strategy performance...")
+                                   transaction_cost: float = 0.0, threshold: float = 0.0003,
+                                   strategy_type: str = 'directional') -> Dict[str, float]:
+    """
+    Calculate strategy performance with different signal generation modes.
+
+    Args:
+        returns: Log returns series
+        ml_predictions: ML predicted log returns
+        transaction_cost: Cost per trade (default 0.0)
+        threshold: Signal threshold (default 0.0003)
+        strategy_type: 'directional' (long/short) or 'only_long' (long only)
+
+    Returns:
+        Dictionary with performance metrics
+    """
+    logging.info(f"Calculating {strategy_type} strategy performance...")
 
     # Align data - convert log returns to simple returns for financial calculations
     data = pd.DataFrame({
@@ -112,11 +158,13 @@ def calculate_strategy_performance(returns: pd.Series, ml_predictions: pd.Series
     if len(data) == 0:
         return {'error': 'No aligned data for strategy'}
 
-    # Generate positions based on ML predictions with threshold
-    threshold = 0.0003
-    positions = np.where(data['ml_pred'] > threshold, 1,
-                        np.where(data['ml_pred'] < -threshold, -1, 0))
-    positions = pd.Series(positions, index=data.index)
+    # Generate signals based on strategy type
+    if strategy_type == 'only_long':
+        signals = generate_only_long_signals(data['ml_pred'], threshold)
+    else:  # directional
+        signals = generate_signals_with_threshold(data['ml_pred'], threshold)
+
+    positions = signals
 
     # Calculate strategy returns (without leverage)
     strategy_returns = positions.shift(1) * data['returns']  # Shift because we use previous day's signal
@@ -185,7 +233,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
 
     if arima_close_col and plot_data[arima_close_col].notna().any():
         plt.plot(plot_data.index, plot_data[arima_close_col],
-                label='ARIMA Forecast', alpha=0.8, linestyle='--')
+                 label='ARIMA Forecast', alpha=0.8, linestyle='--')
 
         # Add confidence intervals if available
         ci_lower_col = arima_close_col.replace('y_pred_arima', 'y_lower')
@@ -193,9 +241,9 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
 
         if ci_lower_col in plot_data.columns and ci_upper_col in plot_data.columns:
             plt.fill_between(plot_data.index,
-                           plot_data[ci_lower_col],
-                           plot_data[ci_upper_col],
-                           alpha=0.2, label='95% Confidence Interval')
+                             plot_data[ci_lower_col],
+                             plot_data[ci_upper_col],
+                             alpha=0.2, label='95% Confidence Interval')
 
     plt.title(f'{ticker.upper()} Price vs ARIMA Forecast')
     plt.xlabel('Date')
@@ -223,7 +271,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
         model_name = ml_pred_col.replace('ml_y_pred_', '').upper()
         if plot_data[ml_pred_col].notna().any():
             plt.plot(plot_data.index, plot_data[ml_pred_col],
-                    label=f'{model_name} Forecast', alpha=0.8, color=colors[i % len(colors)], linestyle='--')
+                     label=f'{model_name} Forecast', alpha=0.8, color=colors[i % len(colors)], linestyle='--')
 
     # Plot ARIMA predictions for returns
     arima_ret_col = None
@@ -234,7 +282,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
 
     if arima_ret_col and plot_data[arima_ret_col].notna().any():
         plt.plot(plot_data.index, plot_data[arima_ret_col],
-                label='ARIMA Returns Forecast', alpha=0.8, color='green', linestyle='--')
+                 label='ARIMA Returns Forecast', alpha=0.8, color='green', linestyle='--')
 
     # Add zero line
     plt.axhline(y=0, color='black', linestyle='-', alpha=0.5)
@@ -267,7 +315,7 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
 
     if garch_vol_col and plot_data[garch_vol_col].notna().any():
         plt.plot(plot_data.index, plot_data[garch_vol_col],
-                label='GARCH Volatility Forecast', alpha=0.8, color='red', linestyle='--')
+                 label='GARCH Volatility Forecast', alpha=0.8, color='red', linestyle='--')
 
     plt.title(f'{ticker.upper()} Volatility: Realized vs GARCH Forecast')
     plt.xlabel('Date')
@@ -282,62 +330,97 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
     logging.info("Saved vol_forecast.png")
 
     # 4. Strategy equity curve
+    # 4. Strategy equity curve
     ml_pred_cols = [col for col in plot_data.columns if col.startswith('ml_y_pred_')]
     if ml_pred_cols:
         plt.figure(figsize=fig_size)
 
-        # Plot buy-and-hold for comparison
-        bh_log_returns = plot_data['log_ret'].dropna()
-        bh_equity = np.exp(bh_log_returns.cumsum())
-        plt.plot(bh_equity.index, bh_equity.values, label='Buy & Hold', alpha=0.7, color='blue', linewidth=2)
+        # --- Buy & Hold на всій історії ---
+        # лог-ретурни -> прості -> кумулятивна дохідність
+        simple_returns = np.exp(plot_data['log_ret'].fillna(0)) - 1
+        bh_equity = (1 + simple_returns).cumprod()
+        plt.plot(bh_equity.index, bh_equity.values,
+                 label='Buy & Hold', alpha=0.7, color='blue', linewidth=2)
 
-        colors = ['green', 'red', 'orange', 'purple']
+        colors = ['green', 'red', 'orange', 'purple', 'cyan', 'magenta']
+        strategy_types = ['directional', 'only_long']
         best_perf = {}
         best_model = None
+        best_strategy_type = None
+
+        strategy_metrics = {}
 
         for i, ml_pred_col in enumerate(ml_pred_cols):
             model_name = ml_pred_col.replace('ml_y_pred_', '').upper()
-            if plot_data[ml_pred_col].notna().any():
-                # Calculate strategy performance
+            pred_series = plot_data[ml_pred_col]
+
+            # пропускаємо модель, якщо взагалі немає прогнозів
+            if not pred_series.notna().any():
+                continue
+
+            for strat_type in strategy_types:
+                # ---- 1. Метрики стратегії (як у тебе було) ----
                 strategy_perf = calculate_strategy_performance(
                     plot_data['log_ret'],
-                    plot_data[ml_pred_col]
+                    pred_series,
+                    transaction_cost=0.0,
+                    threshold=0.0003,
+                    strategy_type=strat_type
                 )
 
-                if 'error' not in strategy_perf:
-                    # Calculate cumulative returns
-                    data_strategy = pd.DataFrame({
-                        'returns': np.exp(plot_data['log_ret']) - 1,  # Convert to simple returns
-                        'ml_pred': plot_data[ml_pred_col]
-                    }).dropna()
+                if 'error' in strategy_perf:
+                    continue
 
-                    threshold = 0.0003
-                    positions = np.where(data_strategy['ml_pred'] > threshold, 1,
-                                        np.where(data_strategy['ml_pred'] < -threshold, -1, 0))
-                    positions = pd.Series(positions, index=data_strategy.index)
-                    strategy_returns = positions.shift(1) * data_strategy['returns']
-                    strategy_returns = strategy_returns.dropna()
+                key = f"{model_name}_{strat_type}"
+                strategy_metrics[key] = strategy_perf
 
-                    # Apply transaction costs
-                    position_changes = positions != positions.shift(1)
-                    tc_per_trade = position_changes * 0.0  # No transaction costs
-                    strategy_returns = strategy_returns - tc_per_trade
-                    strategy_returns = strategy_returns.dropna()
+                # ---- 2. Побудова equity-кривої БЕЗ dropna ----
+                #   a) сигнали на ВСЬОМУ індексі plot_data
+                if strat_type == 'only_long':
+                    raw_signals = generate_only_long_signals(pred_series, 0.0003)
+                else:
+                    raw_signals = generate_signals_with_threshold(pred_series, 0.0003)
 
-                    # Calculate equity curve
-                    equity_curve = (1 + strategy_returns).cumprod()
+                # вирівнюємо по індексу, NaN -> 0 (немає позиції)
+                signals = raw_signals.reindex(plot_data.index).fillna(0)
 
-                    # Plot equity curve
-                    plt.plot(equity_curve.index, equity_curve.values,
-                            label=f'{model_name} Strategy', color=colors[i % len(colors)], linewidth=1.5)
+                #   b) позиція з лагом на 1 день (щоб не було заглядання в майбутнє)
+                positions = signals.shift(1).fillna(0)
 
-                    # Track best model
-                    if not best_perf or strategy_perf.get('sharpe_ratio', 0) > best_perf.get('sharpe_ratio', 0):
-                        best_perf = strategy_perf
-                        best_model = model_name
+                #   c) прості ретурни (для грошей)
+                simple_returns = np.exp(plot_data['log_ret'].fillna(0)) - 1
+
+                #   d) прибуток стратегії
+                strategy_returns = positions * simple_returns
+
+                #   e) equity-крива
+                equity_curve = (1 + strategy_returns).cumprod()
+
+                # ---- 3. Плотинг ----
+                linestyle = '--' if strat_type == 'only_long' else '-'
+                label_suffix = ' (Long Only)' if strat_type == 'only_long' else ''
+                plt.plot(
+                    equity_curve.index,
+                    equity_curve.values,
+                    label=f'{model_name}{label_suffix}',
+                    color=colors[i % len(colors)],
+                    linewidth=1.5,
+                    linestyle=linestyle
+                )
+
+                # ---- 4. Вибір найкращої стратегії по Sharpe ----
+                sharpe = strategy_perf.get('sharpe_ratio', -999)
+                if not best_perf or sharpe > best_perf.get('sharpe_ratio', -999):
+                    best_perf = strategy_perf
+                    best_model = model_name
+                    best_strategy_type = strat_type
 
         if best_perf:
-            plt.title(f'{ticker.upper()} Directional Strategies vs Buy & Hold\nBest: {best_model} (Sharpe: {best_perf.get("sharpe_ratio", 0):.2f})')
+            strategy_desc = "Long Only" if best_strategy_type == 'only_long' else "Directional"
+            plt.title(
+                f'{ticker.upper()} ML Strategies vs Buy & Hold\n'
+                f'Best: {best_model} ({strategy_desc}, Sharpe: {best_perf.get("sharpe_ratio", 0):.2f})'
+            )
             plt.xlabel('Date')
             plt.ylabel('Cumulative Returns')
             plt.legend()
@@ -349,8 +432,8 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str = None, ticker: str 
             plt.close()
             logging.info("Saved strategy_equity.png")
 
-            # Store best strategy performance for summary
-            return best_perf
+            # Повертаємо метрики для текстового summary
+            return strategy_metrics
 
     return {}
 
@@ -415,31 +498,72 @@ def calculate_final_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, fl
 
 
 def save_metrics_summary(metrics: Dict[str, Dict[str, float]],
-                        strategy_perf: Dict[str, float],
-                        output_path: str = None) -> None:
+                         strategy_metrics: Dict[str, Dict[str, float]],
+                         output_path: str = None) -> None:
+    """
+    Save comprehensive metrics summary including all strategy types.
+
+    Args:
+        metrics: Model prediction metrics
+        strategy_metrics: Strategy performance metrics for each model/strategy combination
+        output_path: Path to save the summary
+    """
     if output_path is None:
         output_path = os.path.join(os.path.dirname(__file__), 'reports', 'metrics_summary.txt')
-    """Save metrics summary to file"""
+
     ensure_dirs(output_path)
 
     with open(output_path, 'w') as f:
         f.write("Forecasting Models - Final Metrics Summary\n")
         f.write("=" * 50 + "\n\n")
 
+        # Model prediction metrics
         for model_name, model_metrics in metrics.items():
             f.write(f"{model_name}:\n")
             for metric_name, value in model_metrics.items():
                 f.write(f"  {metric_name}: {value:.6f}\n")
             f.write("\n")
 
-        if strategy_perf and 'error' not in strategy_perf:
-            f.write("Directional Strategy Performance:\n")
-            f.write(f"  Total Return: {strategy_perf.get('total_return', 0):.6f}\n")
-            f.write(f"  Annual Return: {strategy_perf.get('annual_return', 0):.6f}\n")
-            f.write(f"  Annual Volatility: {strategy_perf.get('annual_volatility', 0):.6f}\n")
-            f.write(f"  Sharpe Ratio: {strategy_perf.get('sharpe_ratio', 0):.6f}\n")
-            f.write(f"  Max Drawdown: {strategy_perf.get('max_drawdown', 0):.6f}\n")
-            f.write(f"  Number of Trades: {strategy_perf.get('num_trades', 0)}\n")
+        # Strategy performance metrics
+        if strategy_metrics:
+            f.write("Strategy Performance Metrics:\n")
+            f.write("-" * 30 + "\n\n")
+
+            # Group by model
+            models = set()
+            for key in strategy_metrics.keys():
+                if '_' in key:
+                    model = key.split('_')[0]
+                    models.add(model)
+
+            for model in sorted(models):
+                f.write(f"{model} Strategies:\n")
+
+                # Directional strategy
+                dir_key = f"{model}_directional"
+                if dir_key in strategy_metrics:
+                    perf = strategy_metrics[dir_key]
+                    f.write("  Directional (Long/Short):\n")
+                    f.write(f"    Total Return: {perf.get('total_return', 0):.6f}\n")
+                    f.write(f"    Annual Return: {perf.get('annual_return', 0):.6f}\n")
+                    f.write(f"    Annual Volatility: {perf.get('annual_volatility', 0):.6f}\n")
+                    f.write(f"    Sharpe Ratio: {perf.get('sharpe_ratio', 0):.6f}\n")
+                    f.write(f"    Max Drawdown: {perf.get('max_drawdown', 0):.6f}\n")
+                    f.write(f"    Number of Trades: {perf.get('num_trades', 0)}\n")
+
+                # Only-long strategy
+                long_key = f"{model}_only_long"
+                if long_key in strategy_metrics:
+                    perf = strategy_metrics[long_key]
+                    f.write("  Only-Long:\n")
+                    f.write(f"    Total Return: {perf.get('total_return', 0):.6f}\n")
+                    f.write(f"    Annual Return: {perf.get('annual_return', 0):.6f}\n")
+                    f.write(f"    Annual Volatility: {perf.get('annual_volatility', 0):.6f}\n")
+                    f.write(f"    Sharpe Ratio: {perf.get('sharpe_ratio', 0):.6f}\n")
+                    f.write(f"    Max Drawdown: {perf.get('max_drawdown', 0):.6f}\n")
+                    f.write(f"    Number of Trades: {perf.get('num_trades', 0)}\n")
+
+                f.write("\n")
 
     logging.info(f"Metrics summary saved to {output_path}")
 
@@ -450,7 +574,7 @@ def main():
     setup_logging()
 
     parser = argparse.ArgumentParser(description='Create backtesting plots and metrics')
-    parser.add_argument('--ticker', type=str, default='O', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
     args = parser.parse_args()
 
     logging.info("Starting backtesting and visualization...")
