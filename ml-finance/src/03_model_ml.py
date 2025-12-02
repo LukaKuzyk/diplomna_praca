@@ -40,8 +40,15 @@ try:
 except ImportError:
     CATBOOST_AVAILABLE = False
 
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
+# Try to import NGBoost
+try:
+    from ngboost import NGBRegressor
+    NGBOOST_AVAILABLE = True
+except ImportError:
+    NGBOOST_AVAILABLE = False
+
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor
+from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
@@ -86,6 +93,13 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     news_daily = news_df.reindex(features_df.index, method='ffill')
     # Join to features_df
     features_df = features_df.join(news_daily)
+
+    # Lag features for search and news
+    search_news_cols = ['iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
+                        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
+    for col in search_news_cols:
+        for lag in [1, 2, 3]:
+            features_df[f'{col}_lag_{lag}'] = features_df[col].shift(lag)
 
     # Lag features for log_ret
     for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
@@ -229,6 +243,19 @@ def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
     if CATBOOST_AVAILABLE:
         models['cat'] = (CatBoostRegressor(iterations=100, depth=5, learning_rate=0.05, random_state=random_state, verbose=False), StandardScaler())
 
+    # ElasticNet
+    models['elasticnet'] = (ElasticNet(alpha=0.01, l1_ratio=0.5, random_state=random_state), StandardScaler())
+
+    # ExtraTrees
+    models['extratrees'] = (ExtraTreesRegressor(n_estimators=100, max_depth=10, min_samples_split=5, random_state=random_state), StandardScaler())
+
+    # SGD
+    models['sgd'] = (SGDRegressor(max_iter=1000, tol=1e-3, alpha=0.01, random_state=random_state), StandardScaler())
+
+    # NGBoost (if available)
+    if NGBOOST_AVAILABLE:
+        models['ngb'] = (NGBRegressor(n_estimators=100, learning_rate=0.1, random_state=random_state), StandardScaler())
+
     return models
 
 
@@ -262,7 +289,17 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',
         'day_of_week', 'month',
         'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
-        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news'
+        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news',
+        'iphone_search_lag_1', 'iphone_search_lag_2', 'iphone_search_lag_3',
+        'ai_search_lag_1', 'ai_search_lag_2', 'ai_search_lag_3',
+        'election_search_lag_1', 'election_search_lag_2', 'election_search_lag_3',
+        'trump_search_lag_1', 'trump_search_lag_2', 'trump_search_lag_3',
+        'stock_search_lag_1', 'stock_search_lag_2', 'stock_search_lag_3',
+        'war_news_lag_1', 'war_news_lag_2', 'war_news_lag_3',
+        'unemployment_news_lag_1', 'unemployment_news_lag_2', 'unemployment_news_lag_3',
+        'tariffs_news_lag_1', 'tariffs_news_lag_2', 'tariffs_news_lag_3',
+        'earnings_news_lag_1', 'earnings_news_lag_2', 'earnings_news_lag_3',
+        'ai_news_lag_1', 'ai_news_lag_2', 'ai_news_lag_3'
     ]
 
     # Check if all features exist
