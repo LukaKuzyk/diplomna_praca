@@ -62,6 +62,31 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             # Fallback to regular conversion
             features_df.index = pd.to_datetime(features_df.index)
 
+    # Load search data
+    search_path = os.path.join(os.path.dirname(__file__), 'data', 'search_data_01.csv')
+    search_df = pd.read_csv(search_path, skiprows=2, header=0)
+    search_df.columns = ['month', 'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search']
+    search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
+    search_df = search_df.set_index('month')
+    # Reindex to daily and forward fill
+    search_daily = search_df.reindex(features_df.index, method='ffill')
+    # Join to features_df
+    features_df = features_df.join(search_daily)
+
+    # Load news data
+    news_path = os.path.join(os.path.dirname(__file__), 'data', 'news_data_01.csv')
+    news_df = pd.read_csv(news_path, skiprows=2, header=0)
+    news_df.columns = ['month', 'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
+    news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
+    # Handle '<1' values
+    for col in ['war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']:
+        news_df[col] = news_df[col].replace('<1', 0.5).astype(float)
+    news_df = news_df.set_index('month')
+    # Reindex to daily and forward fill
+    news_daily = news_df.reindex(features_df.index, method='ffill')
+    # Join to features_df
+    features_df = features_df.join(news_daily)
+
     # Lag features for log_ret
     for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
@@ -235,7 +260,9 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
         'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
         'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',
-        'day_of_week', 'month'
+        'day_of_week', 'month',
+        'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
+        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news'
     ]
 
     # Check if all features exist
