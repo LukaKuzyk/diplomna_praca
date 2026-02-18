@@ -15,7 +15,7 @@ import matplotlib.dates as mdates
 
 from utils import (
     set_seed, setup_logging, evaluate_regression,
-    directional_accuracy, ensure_dirs
+    directional_accuracy, buy_and_hold_accuracy, ensure_dirs
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features
@@ -25,13 +25,11 @@ from models import get_ml_models, MLModelPredictor
 warnings.filterwarnings('ignore')
 
 
-def load_model_metrics(ticker: str) -> Dict[str, float]:
+def load_model_metrics(ticker: str) -> Dict[str, any]:
     """Load directional accuracy metrics for each model"""
-    # Try ML metrics file first
     metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_ml_metrics_summary.txt'))
 
     if not metrics_path.exists():
-        # Fallback to regular metrics file
         metrics_path = Path(os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_metrics_summary.txt'))
         if not metrics_path.exists():
             logging.warning(f"Metrics file not found: {metrics_path}")
@@ -42,18 +40,30 @@ def load_model_metrics(ticker: str) -> Dict[str, float]:
         with open(metrics_path, 'r') as f:
             content = f.read()
 
-        # Parse DA values for each model
         lines = content.split('\n')
         current_model = None
+        current_dict = {}
 
         for line in lines:
             line = line.strip()
             if line.endswith('_Returns:'):
                 current_model = line.replace('_Returns:', '').replace('ML_', '')
+                current_dict = {}
+            elif line.startswith('Raw_DA:') and current_model:
+                current_dict['raw_da'] = float(line.split(':')[1].strip())
+            elif line.startswith('Confident_DA:') and current_model:
+                current_dict['confident_da'] = float(line.split(':')[1].strip())
+            elif line.startswith('Coverage:') and current_model:
+                current_dict['coverage'] = float(line.split(':')[1].strip())
+                da_metrics[current_model.lower()] = current_dict
+                current_model = None
             elif line.startswith('Directional_Accuracy:') and current_model:
+                # Legacy format fallback
                 da_value = float(line.split(':')[1].strip())
                 da_metrics[current_model.lower()] = da_value
                 current_model = None
+            elif line.startswith('Buy_and_Hold_DA:'):
+                da_metrics['_bh_accuracy'] = float(line.split(':')[1].strip())
 
     except Exception as e:
         logging.warning(f"Error loading metrics: {e}")
@@ -122,6 +132,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
 
     # Load directional accuracy metrics
     da_metrics = load_model_metrics(ticker)
+    bh_acc = da_metrics.pop('_bh_accuracy', buy_and_hold_accuracy(df_features['log_ret'].dropna()))
 
     # Overall recommendation based on threshold logic (only-long strategy)
     threshold = SIGNAL_THRESHOLD
@@ -140,12 +151,13 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
         'last_close': last_close,
         'predictions': predictions,
         'da_metrics': da_metrics,
+        'bh_accuracy': bh_acc,
         'recommendation': recommendation,
         'reason': reason,
         'expected_return_pct': expected_return_pct,
         'threshold': threshold,
         'primary_model': primary_model.upper(),
-        'historical_data': df_features[['close']].tail(30)  # Last 30 days (1 month) for plotting
+        'historical_data': df_features[['close']].tail(30)
     }
 
     logging.info(f"Prediction completed for {ticker}: {result['recommendation']}")
@@ -258,16 +270,20 @@ def main():
         print(f"Signal Threshold: {result['threshold']}")
         print("\nML Model Predictions:")
         da_metrics = result.get('da_metrics', {})
+        bh_acc = result.get('bh_accuracy', 0)
         for model, pred in result['predictions'].items():
             if model.startswith('ML_'):
                 model_key = model.replace('ML_', '').lower()
-                da_value = da_metrics.get(model_key, 'N/A')
-                if da_value != 'N/A':
+                da_value = da_metrics.get(model_key, {})
+                if isinstance(da_value, dict):
+                    da_str = f"Raw DA: {da_value.get('raw_da', 0):.1%}, Confident DA: {da_value.get('confident_da', 0):.1%} ({da_value.get('coverage', 0):.0%} coverage)"
+                elif isinstance(da_value, (int, float)):
                     da_str = f"DA: {da_value:.1%}"
                 else:
                     da_str = "DA: N/A"
                 print(f"  {model}: Price ${pred['close']:.2f}, Return {pred['log_ret']:.6f}, {da_str}")
-        print(f"\nExpected Return (ML): {result['expected_return_pct']:.2f}%")
+        print(f"\nBaseline (Buy & Hold DA): {bh_acc:.1%}")
+        print(f"Expected Return (ML): {result['expected_return_pct']:.2f}%")
         print(f"RECOMMENDATION: {result['recommendation']}")
         print(f"Reason: {result['reason']}")
         print("="*60)

@@ -17,7 +17,7 @@ from scipy import stats
 
 from utils import (
     set_seed, setup_logging, evaluate_regression,
-    directional_accuracy, ensure_dirs, save_predictions_csv
+    directional_accuracy, buy_and_hold_accuracy, ensure_dirs, save_predictions_csv
 )
 from config import SIGNAL_THRESHOLD
 
@@ -130,25 +130,31 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
         ax2.legend()
         ax2.grid(True, alpha=0.3)
 
-    # 3. Rolling Directional Accuracy
+    # 3. Rolling Raw Directional Accuracy (honest, no threshold)
     ax3 = axes[1, 0]
-    window_size = 50  # Rolling window for accuracy calculation
+    window_size = 50
     for i, col in enumerate(model_cols):
         pred_returns = combined_df[col]
         mask = actual_returns.notna() & pred_returns.notna()
         if mask.sum() > window_size:
-            # Calculate rolling directional accuracy
             actual_sign = np.sign(actual_returns[mask])
             pred_sign = np.sign(pred_returns[mask])
             accuracy = (actual_sign == pred_sign).rolling(window=window_size).mean()
             ax3.plot(accuracy.index, accuracy.values, color=colors[i % len(colors)],
                     label=col.replace('ml_y_pred_', '').upper(), linewidth=2)
 
+    # Buy & Hold baseline
+    bh_mask = actual_returns.notna()
+    if bh_mask.sum() > window_size:
+        bh_accuracy = (actual_returns[bh_mask] > 0).rolling(window=window_size).mean()
+        ax3.plot(bh_accuracy.index, bh_accuracy.values, color='grey', linestyle=':',
+                linewidth=2, label='Buy & Hold baseline')
+
     ax3.axhline(y=0.5, color='black', linestyle='--', alpha=0.7, label='Random (50%)')
     ax3.set_xlabel('Date')
-    ax3.set_ylabel('Directional Accuracy (Rolling)')
-    ax3.set_title(f'Rolling Directional Accuracy (Window={window_size})')
-    ax3.legend()
+    ax3.set_ylabel('Raw Directional Accuracy (Rolling)')
+    ax3.set_title(f'Rolling Raw DA — No Threshold (Window={window_size})')
+    ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3)
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 
@@ -502,6 +508,10 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
 
     metrics = {}
 
+    # Buy & Hold baseline
+    bh_acc = buy_and_hold_accuracy(combined_df['log_ret'].dropna())
+    metrics['Baseline'] = {'Buy_and_Hold_DA': bh_acc}
+
     # ML Returns metrics for each model
     ml_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_')]
     for col in ml_cols:
@@ -512,11 +522,14 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
                 combined_df.loc[mask, 'log_ret'],
                 combined_df.loc[mask, col]
             )
-            ml_metrics['Directional_Accuracy'] = directional_accuracy(
+            da = directional_accuracy(
                 combined_df.loc[mask, 'log_ret'],
                 combined_df.loc[mask, col],
                 threshold=SIGNAL_THRESHOLD
             )
+            ml_metrics['Raw_DA'] = da['raw_da']
+            ml_metrics['Confident_DA'] = da['confident_da']
+            ml_metrics['Coverage'] = da['coverage']
             metrics[f'ML_{model_name}_Returns'] = ml_metrics
 
     return metrics

@@ -9,7 +9,8 @@ import pandas as pd
 
 from utils import (
     set_seed, setup_logging, train_test_splits,
-    evaluate_regression, directional_accuracy, save_predictions_csv
+    evaluate_regression, directional_accuracy, buy_and_hold_accuracy,
+    save_predictions_csv
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features
@@ -83,6 +84,9 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
 
     # Calculate metrics for each model
     models = get_ml_models()
+    bh_acc = buy_and_hold_accuracy(results_df['y_true'])
+    logging.info(f"Baseline (Buy & Hold) accuracy: {bh_acc:.1%}")
+
     for model_name in models.keys():
         pred_col = f'y_pred_{model_name}'
         mask = results_df['y_true'].notna() & results_df[pred_col].notna()
@@ -92,15 +96,21 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
                 results_df.loc[mask, pred_col]
             )
 
-            ml_da = directional_accuracy(
+            da = directional_accuracy(
                 results_df.loc[mask, 'y_true'],
                 results_df.loc[mask, pred_col],
                 threshold=SIGNAL_THRESHOLD
             )
 
-            ml_metrics['Directional_Accuracy'] = ml_da
+            ml_metrics['Raw_DA'] = da['raw_da']
+            ml_metrics['Confident_DA'] = da['confident_da']
+            ml_metrics['Coverage'] = da['coverage']
 
-            logging.info(f"{model_name.upper()} Model Metrics: {ml_metrics}")
+            logging.info(
+                f"{model_name.upper()}: Raw DA={da['raw_da']:.1%}, "
+                f"Confident DA={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), "
+                f"B&H baseline={bh_acc:.1%}"
+            )
 
     return results_df
 

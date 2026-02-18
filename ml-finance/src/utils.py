@@ -75,31 +75,53 @@ def evaluate_regression(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, flo
     }
 
 
-def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray, threshold: float = 0.0) -> float:
-    """Calculate directional accuracy (sign hit-rate) with optional threshold"""
+def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray, threshold: float = 0.0) -> dict:
+    """Calculate directional accuracy metrics.
+
+    Returns dict with:
+        raw_da:       accuracy on ALL days (no threshold filtering)
+        confident_da: accuracy only on days where |pred| > threshold
+        coverage:     fraction of days where |pred| > threshold
+    """
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
-    # Apply threshold to predictions
-    if threshold > 0:
-        pred_direction = np.where(y_pred > threshold, 1,
-                                  np.where(y_pred < -threshold, -1, 0))
-    else:
-        pred_direction = np.sign(y_pred)
-
-    # Calculate true directions
     true_direction = np.sign(y_true)
+    pred_direction_raw = np.sign(y_pred)
 
-    # Calculate accuracy (ignore zeros in predictions and true where pred is 0)
-    # For pred_direction == 0, we consider it as no signal, so skip those days
-    mask = (pred_direction != 0) & (true_direction != 0)
-    if np.sum(mask) == 0:
+    # Raw DA — all days where both are non-zero
+    raw_mask = (true_direction != 0) & (pred_direction_raw != 0)
+    if np.sum(raw_mask) > 0:
+        raw_da = np.sum(true_direction[raw_mask] == pred_direction_raw[raw_mask]) / np.sum(raw_mask)
+    else:
+        raw_da = 0.0
+
+    # Confident DA — only days where prediction exceeds threshold
+    if threshold > 0:
+        confident_pred = np.where(y_pred > threshold, 1,
+                                  np.where(y_pred < -threshold, -1, 0))
+        confident_mask = (confident_pred != 0) & (true_direction != 0)
+        total_tradeable = np.sum(true_direction != 0)
+        coverage = np.sum(confident_mask) / total_tradeable if total_tradeable > 0 else 0.0
+
+        if np.sum(confident_mask) > 0:
+            confident_da = np.sum(true_direction[confident_mask] == confident_pred[confident_mask]) / np.sum(confident_mask)
+        else:
+            confident_da = 0.0
+    else:
+        confident_da = raw_da
+        coverage = 1.0
+
+    return {'raw_da': raw_da, 'confident_da': confident_da, 'coverage': coverage}
+
+
+def buy_and_hold_accuracy(y_true: np.ndarray) -> float:
+    """Baseline: fraction of days where market went up."""
+    y_true = np.array(y_true)
+    non_zero = y_true[y_true != 0]
+    if len(non_zero) == 0:
         return 0.0
-
-    correct = np.sum((true_direction == pred_direction) & mask)
-    total = np.sum(mask)
-
-    return correct / total if total > 0 else 0.0
+    return np.sum(non_zero > 0) / len(non_zero)
 
 
 def ensure_dirs(path: str) -> None:
