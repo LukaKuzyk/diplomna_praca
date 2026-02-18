@@ -11,252 +11,14 @@ from utils import (
     set_seed, setup_logging, train_test_splits,
     evaluate_regression, directional_accuracy, save_predictions_csv
 )
-
-SIGNAL_THRESHOLD = 0.002
-
+from config import SIGNAL_THRESHOLD, FEATURE_COLS
+from features import create_features
+from models import get_ml_models
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 
-# Try to import XGBoost, fallback to RandomForest
-try:
-    from xgboost import XGBRegressor
-    XGBOOST_AVAILABLE = True
-except ImportError:
-    XGBOOST_AVAILABLE = False
-    logging.warning("XGBoost not available, will use RandomForest as fallback")
-
-# Try to import LightGBM
-try:
-    from lightgbm import LGBMRegressor
-    LGBM_AVAILABLE = True
-except ImportError:
-    LGBM_AVAILABLE = False
-
-# Try to import CatBoost
-try:
-    from catboost import CatBoostRegressor
-    CATBOOST_AVAILABLE = True
-except ImportError:
-    CATBOOST_AVAILABLE = False
-
-# Try to import NGBoost
-try:
-    from ngboost import NGBRegressor
-    NGBOOST_AVAILABLE = True
-except ImportError:
-    NGBOOST_AVAILABLE = False
-
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor
-from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
-
-
-def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create ML features from the dataset"""
-    logging.info("Creating ML features...")
-
-    features_df = df.copy()
-
-    # Ensure index is DatetimeIndex for calendar features
-    if not isinstance(features_df.index, pd.DatetimeIndex):
-        logging.warning("Converting index to DatetimeIndex for calendar features")
-        try:
-            # Try with utc=True first for timezone-aware data
-            features_df.index = pd.to_datetime(features_df.index, utc=True)
-        except (ValueError, TypeError):
-            # Fallback to regular conversion
-            features_df.index = pd.to_datetime(features_df.index)
-
-    # Load search data
-    search_path = os.path.join(os.path.dirname(__file__), 'data', 'search_data_01.csv')
-    search_df = pd.read_csv(search_path, skiprows=2, header=0)
-    search_df.columns = ['month', 'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search']
-    search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
-    search_df = search_df.set_index('month')
-    # Reindex to daily and forward fill
-    search_daily = search_df.reindex(features_df.index, method='ffill')
-    # Join to features_df
-    features_df = features_df.join(search_daily)
-
-    # Load news data
-    news_path = os.path.join(os.path.dirname(__file__), 'data', 'news_data_01.csv')
-    news_df = pd.read_csv(news_path, skiprows=2, header=0)
-    news_df.columns = ['month', 'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
-    news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
-    # Handle '<1' values
-    for col in ['war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']:
-        news_df[col] = news_df[col].replace('<1', 0.5).astype(float)
-    news_df = news_df.set_index('month')
-    # Reindex to daily and forward fill
-    news_daily = news_df.reindex(features_df.index, method='ffill')
-    # Join to features_df
-    features_df = features_df.join(news_daily)
-
-    # Lag features for search and news
-    search_news_cols = ['iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
-                        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
-    for col in search_news_cols:
-        for lag in [1, 2, 3]:
-            features_df[f'{col}_lag_{lag}'] = features_df[col].shift(lag)
-
-    # Lag features for log_ret
-    for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
-        features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
-
-    # Volume features
-    features_df['volume'] = df['Volume']
-    for lag in [1, 2, 5]:
-        features_df[f'volume_lag_{lag}'] = features_df['volume'].shift(lag)
-
-    # Rolling statistics
-    features_df['rolling_skew_20'] = features_df['log_ret'].rolling(20).skew()
-    features_df['rolling_kurt_20'] = features_df['log_ret'].rolling(20).kurt()
-
-    # SNP500 change (assuming it's in df, or placeholder)
-    # If not available, this will be NaN
-    if 'snp500' in df.columns:
-        features_df['snp500_change'] = df['snp500'].pct_change()
-    else:
-        # Placeholder, set to 0 or some value
-        features_df['snp500_change'] = 0.0
-
-    # Technical indicators
-    # SMA(5) and SMA(20)
-    features_df['sma_5'] = features_df['close'].rolling(5).mean()
-    features_df['sma_20'] = features_df['close'].rolling(20).mean()
-
-    # RSI(14) - Relative Strength Index
-    def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
-        """Calculate RSI indicator"""
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-
-        # Avoid division by zero
-        rs = gain / loss.replace(0, np.inf)
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
-
-    features_df['rsi_14'] = calculate_rsi(features_df['close'], 14)
-
-    # MACD
-    exp1 = features_df['close'].ewm(span=12, adjust=False).mean()
-    exp2 = features_df['close'].ewm(span=26, adjust=False).mean()
-    features_df['macd'] = exp1 - exp2
-    features_df['macd_signal'] = features_df['macd'].ewm(span=9, adjust=False).mean()
-
-    # Bollinger Bands
-    sma20 = features_df['close'].rolling(20).mean()
-    std20 = features_df['close'].rolling(20).std()
-    features_df['bb_upper'] = sma20 + 2 * std20
-    features_df['bb_lower'] = sma20 - 2 * std20
-    features_df['bb_middle'] = sma20
-
-    # Stochastic Oscillator
-    low14 = features_df['close'].rolling(14).min()
-    high14 = features_df['close'].rolling(14).max()
-    features_df['stoch_k'] = 100 * (features_df['close'] - low14) / (high14 - low14)
-    features_df['stoch_d'] = features_df['stoch_k'].rolling(3).mean()
-
-    # ATR
-    def calculate_atr(high, low, close, period=14):
-        tr = pd.concat([high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()], axis=1).max(axis=1)
-        atr = tr.rolling(period).mean()
-        return atr
-    features_df['atr_14'] = calculate_atr(features_df['High'], features_df['Low'], features_df['close'], 14)
-
-    # CCI
-    def calculate_cci(high, low, close, period=20):
-        tp = (high + low + close) / 3
-        sma_tp = tp.rolling(period).mean()
-        mad_tp = (tp - sma_tp).abs().rolling(period).mean()
-        cci = (tp - sma_tp) / (0.015 * mad_tp)
-        return cci
-    features_df['cci_20'] = calculate_cci(features_df['High'], features_df['Low'], features_df['close'], 20)
-
-    # Momentum
-    features_df['momentum_5'] = (features_df['close'] - features_df['close'].shift(5)) / features_df['close'].shift(5)
-    features_df['momentum_10'] = (features_df['close'] - features_df['close'].shift(10)) / features_df['close'].shift(10)
-
-    # Volume MA
-    features_df['volume_ma_5'] = features_df['volume'].rolling(5).mean()
-    features_df['volume_ma_20'] = features_df['volume'].rolling(20).mean()
-
-    # Volatility feature (already exists as rv_5)
-    features_df['volatility'] = features_df['rv_5']
-
-    # Calendar features
-    features_df['day_of_week'] = features_df.index.dayofweek  # 0=Monday, 4=Friday
-    features_df['month'] = features_df.index.month  # 1-12
-
-    # Fill NaN in features with 0
-    features_df = features_df.fillna(0)
-
-    # Remove rows with NaN values in essential columns
-    initial_rows = len(features_df)
-    features_df = features_df.dropna(subset=['close', 'log_ret', 'rv_5'])
-    logging.info(f"Removed {initial_rows - len(features_df)} rows due to NaN values")
-
-    return features_df
-
-
-def get_ml_models(random_state: int = 42) -> Dict[str, tuple]:
-    """Get dictionary of ML models to compare"""
-    models = {}
-
-    # Linear Regression (baseline)
-    models['linear'] = (LinearRegression(), StandardScaler())
-
-    # Random Forest
-    models['rf'] = (RandomForestRegressor(
-        n_estimators=100,
-        max_depth=15,
-        min_samples_split=5,
-        min_samples_leaf=2,
-        random_state=random_state
-    ), StandardScaler())
-
-    # XGBoost (if available)
-    if XGBOOST_AVAILABLE:
-        models['xgb'] = (XGBRegressor(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=random_state
-        ), StandardScaler())
-        # logging.info("XGBoost available for comparison")
-    else:
-        logging.warning("XGBoost not available, skipping XGBoost model")
-
-    # Gradient Boosting Regressor
-    models['gbr'] = (GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
-
-    # LightGBM (if available)
-    if LGBM_AVAILABLE:
-        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
-
-    # CatBoost (if available)
-    if CATBOOST_AVAILABLE:
-        models['cat'] = (CatBoostRegressor(iterations=100, depth=5, learning_rate=0.05, random_state=random_state, verbose=False), StandardScaler())
-
-    # ElasticNet
-    models['elasticnet'] = (ElasticNet(alpha=0.01, l1_ratio=0.5, random_state=random_state), StandardScaler())
-
-    # ExtraTrees
-    models['extratrees'] = (ExtraTreesRegressor(n_estimators=100, max_depth=10, min_samples_split=5, random_state=random_state), StandardScaler())
-
-    # SGD
-    models['sgd'] = (SGDRegressor(max_iter=1000, tol=1e-3, alpha=0.01, random_state=random_state), StandardScaler())
-
-    # NGBoost (if available)
-    if NGBOOST_AVAILABLE:
-        models['ngb'] = (NGBRegressor(n_estimators=100, learning_rate=0.1, random_state=random_state), StandardScaler())
-
-    return models
 
 
 def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: str = 'AAPL') -> pd.DataFrame:
@@ -271,39 +33,8 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     # Create features
     df_features = create_features(df)
 
-    # Define feature columns (exclude target and other non-feature columns)
-    feature_cols = [
-        'log_ret_lag_1',
-        'log_ret_lag_2',
-        'log_ret_lag_3', 'log_ret_lag_5',
-        'log_ret_lag_7',
-        'log_ret_lag_10',
-        'log_ret_lag_14',
-        'log_ret_lag_15', 'log_ret_lag_20',
-        'log_ret_lag_21', 'log_ret_lag_30',
-        'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
-        'rolling_skew_20', 'rolling_kurt_20',
-        'snp500_change',
-        'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
-        'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
-        'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',
-        'day_of_week', 'month',
-        'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
-        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news',
-        'iphone_search_lag_1', 'iphone_search_lag_2', 'iphone_search_lag_3',
-        'ai_search_lag_1', 'ai_search_lag_2', 'ai_search_lag_3',
-        'election_search_lag_1', 'election_search_lag_2', 'election_search_lag_3',
-        'trump_search_lag_1', 'trump_search_lag_2', 'trump_search_lag_3',
-        'stock_search_lag_1', 'stock_search_lag_2', 'stock_search_lag_3',
-        'war_news_lag_1', 'war_news_lag_2', 'war_news_lag_3',
-        'unemployment_news_lag_1', 'unemployment_news_lag_2', 'unemployment_news_lag_3',
-        'tariffs_news_lag_1', 'tariffs_news_lag_2', 'tariffs_news_lag_3',
-        'earnings_news_lag_1', 'earnings_news_lag_2', 'earnings_news_lag_3',
-        'ai_news_lag_1', 'ai_news_lag_2', 'ai_news_lag_3'
-    ]
-
     # Check if all features exist
-    missing_features = [col for col in feature_cols if col not in df_features.columns]
+    missing_features = [col for col in FEATURE_COLS if col not in df_features.columns]
     if missing_features:
         raise ValueError(f"Missing features: {missing_features}")
 
@@ -317,8 +48,8 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         logging.info(f"Window {window_id}: train={len(train_split)}, test={len(test_split)}")
 
         # Get features for train/test
-        train_features = df_features.loc[train_split.index, feature_cols]
-        test_features = df_features.loc[test_split.index, feature_cols]
+        train_features = df_features.loc[train_split.index, FEATURE_COLS]
+        test_features = df_features.loc[test_split.index, FEATURE_COLS]
 
         # Skip if not enough data
         if len(train_features) < 50 or len(test_features) == 0:

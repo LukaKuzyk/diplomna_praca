@@ -9,102 +9,16 @@ import warnings
 from typing import Dict, List, Tuple, Optional
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-from arch import arch_model
 import matplotlib.pyplot as plt
 
 from utils import (
     set_seed, setup_logging, train_test_splits,
     evaluate_regression, directional_accuracy, save_predictions_csv
 )
+from models import BaselineModels
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
-
-
-class BaselineModels:
-    """Baseline models for time series forecasting"""
-
-    def __init__(self, random_state: int = 42):
-        self.random_state = random_state
-
-    def naive_forecast(self, train: pd.Series, test: pd.Series, target: str) -> np.ndarray:
-        """Naive (Random Walk) forecast"""
-        if target == 'close':
-            # For price: last known price
-            return np.full(len(test), train.iloc[-1])
-        elif target == 'log_ret':
-            # For returns: predict zero (no change)
-            return np.zeros(len(test))
-        else:
-            raise ValueError(f"Unknown target: {target}")
-
-    def fit_arima(self, train: pd.Series, target: str) -> ARIMA:
-        """Fit ARIMA model"""
-        if target == 'log_ret':
-            # ARIMA(1,0,1) for log returns
-            order = (1, 0, 1)
-        elif target == 'close':
-            # ARIMA(1,1,1) for price (needs differencing)
-            order = (1, 1, 1)
-        else:
-            raise ValueError(f"Unknown target: {target}")
-
-        try:
-            model = ARIMA(train, order=order)
-            model_fit = model.fit()
-            return model_fit
-        except Exception as e:
-            logging.warning(f"ARIMA fitting failed: {e}")
-            # Fallback to simpler model
-            if target == 'log_ret':
-                model = ARIMA(train, order=(1, 0, 0))
-            else:
-                model = ARIMA(train, order=(0, 1, 0))
-            return model.fit()
-
-    def forecast_arima(self, model_fit: ARIMA, steps: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get ARIMA forecast with confidence intervals"""
-        try:
-            forecast = model_fit.get_forecast(steps=steps)
-            forecast_mean = forecast.predicted_mean
-            forecast_ci = forecast.conf_int(alpha=0.05)  # 95% CI
-
-            return forecast_mean, forecast_ci.iloc[:, 0], forecast_ci.iloc[:, 1]
-        except Exception as e:
-            logging.warning(f"ARIMA forecasting failed: {e}")
-            # Return naive forecast if ARIMA fails
-            return np.zeros(steps), np.zeros(steps), np.zeros(steps)
-
-    def fit_garch(self, returns: pd.Series) -> arch_model:
-        """Fit GARCH(1,1) model"""
-        try:
-            model = arch_model(returns, mean='AR', vol='GARCH', p=1, q=1, dist='StudentsT')
-            return model.fit(disp='off')
-        except Exception as e:
-            logging.warning(f"GARCH fitting failed: {e}")
-            # Fallback to simpler GARCH
-            try:
-                model = arch_model(returns, mean='Constant', vol='GARCH', p=1, q=1)
-                return model.fit(disp='off')
-            except Exception as e2:
-                logging.error(f"GARCH fallback also failed: {e2}")
-                raise
-
-    def forecast_garch(self, model_fit: arch_model, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get GARCH mean and volatility forecast"""
-        try:
-            forecast = model_fit.forecast(horizon=steps)
-            # Get conditional mean and volatility for next periods
-            mean_forecast = forecast.mean.iloc[-1, :].values
-            vol_forecast = np.sqrt(forecast.variance.iloc[-1, :].values)
-            # For simplicity, use mean +/- vol as bounds
-            lower = mean_forecast - vol_forecast
-            upper = mean_forecast + vol_forecast
-            return mean_forecast, lower, upper
-        except Exception as e:
-            logging.warning(f"GARCH forecasting failed: {e}")
-            return np.zeros(steps), np.zeros(steps), np.zeros(steps)
 
 
 def run_walk_forward(target: str, train_window: int, test_window: int, step: int) -> pd.DataFrame:

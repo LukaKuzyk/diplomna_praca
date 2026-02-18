@@ -17,8 +17,9 @@ from scipy import stats
 
 from utils import (
     set_seed, setup_logging, evaluate_regression,
-    directional_accuracy, ensure_dirs
+    directional_accuracy, ensure_dirs, save_predictions_csv
 )
+from config import SIGNAL_THRESHOLD
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -26,9 +27,6 @@ warnings.filterwarnings('ignore')
 # Set plotting style
 plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
-
-# Signal threshold for trading decisions
-SIGNAL_THRESHOLD = 0.002
 
 
 def load_ml_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, pd.DataFrame]:
