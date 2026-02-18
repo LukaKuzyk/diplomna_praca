@@ -155,13 +155,13 @@ def create_pdf_report(data: dict, output_path: str) -> None:
     story = []
 
     # Title Page
-    story.append(Paragraph(f"ML Stock Forecasting Report", title_style))
+    story.append(Paragraph(f"ML Report Predikcie Akcií", title_style))
     story.append(Paragraph(f"Ticker: {data['ticker']}", subtitle_style))
-    story.append(Paragraph(f"Generated: {data['generation_date']}", normal_style))
+    story.append(Paragraph(f"Vygenerované: {data['generation_date']}", normal_style))
     story.append(Spacer(1, 50))
 
     # Executive Summary
-    story.append(Paragraph("Executive Summary", styles['Heading1']))
+    story.append(Paragraph("Manažérske Zhrnutie (Executive Summary)", styles['Heading1']))
     story.append(Spacer(1, 12))
 
     if data['metrics']:
@@ -173,9 +173,9 @@ def create_pdf_report(data: dict, output_path: str) -> None:
             bh_da = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
 
             summary_text = f"""
-            This report presents a comprehensive analysis of {data['ticker']} stock using advanced machine learning models.
-            The best performing model is <b>{best_model}</b> with a raw directional accuracy of <b>{best_raw_da:.1%}</b>
-            (vs Buy &amp; Hold baseline of {bh_da:.1%}).
+            Tento report predstavuje komplexnú analýzu akcie {data['ticker']} pomocou pokročilých modelov strojového učenia (ML).
+            Najvýkonnejší model je <b>{best_model}</b> s raw smerovou presnosťou (Raw DA) <b>{best_raw_da:.1%}</b>
+            (oproti Buy &amp; Hold baseline {bh_da:.1%}).
             """
 
         if data['next_day_prediction']:
@@ -183,7 +183,7 @@ def create_pdf_report(data: dict, output_path: str) -> None:
             pred_return = data['next_day_prediction'].get('predicted_return', 0)
             summary_text += f"""
             <br/><br/>
-            <b>Next Day Prediction:</b> {recommendation} (Expected Return: {pred_return:.2%})
+            <b>Predikcia na Ďalší Deň:</b> {recommendation} (Očakávaný Výnos: {pred_return:.2%})
             """
 
         story.append(Paragraph(summary_text, normal_style))
@@ -191,7 +191,7 @@ def create_pdf_report(data: dict, output_path: str) -> None:
 
     # Model Performance Table
     if data['metrics']:
-        story.append(Paragraph("Model Performance Metrics", styles['Heading2']))
+        story.append(Paragraph("Metriky Výkonnosti Modelov", styles['Heading2']))
         story.append(Spacer(1, 12))
 
         # Prepare table data
@@ -225,11 +225,11 @@ def create_pdf_report(data: dict, output_path: str) -> None:
 
     # Next Day Prediction Section
     if data['next_day_prediction']:
-        story.append(Paragraph("Next Day Trading Recommendation", styles['Heading2']))
+        story.append(Paragraph("Odporúčanie pre Zajtrajšie Obchodovanie", styles['Heading2']))
         story.append(Spacer(1, 12))
 
         pred_data = [
-            ['Metric', 'Value'],
+            ['Metric (Metrika)', 'Value (Hodnota)'],
             ['Best Model', data['next_day_prediction'].get('best_model', 'N/A')],
             ['Predicted Return', f"{data['next_day_prediction'].get('predicted_return', 0) / 100:.2%}"],
             ['Raw DA', f"{data['next_day_prediction'].get('raw_da', 0):.1%}"],
@@ -246,14 +246,14 @@ def create_pdf_report(data: dict, output_path: str) -> None:
     story.append(PageBreak())
 
     # Charts Section
-    story.append(Paragraph("Analysis Charts", styles['Heading1']))
+    story.append(Paragraph("Analytické Grafy (Analysis Charts)", styles['Heading1']))
     story.append(Spacer(1, 12))
 
     chart_descriptions = {
-        'model_comparison': 'Model Predictions vs Actual Returns and Error Analysis',
-        'strategy_performance': 'Strategy Performance Comparison and Risk Metrics',
-        'prediction_stability': 'Prediction Stability and Model Agreement Analysis',
-        'feature_analysis': 'Feature Importance and Correlation Analysis'
+        'model_comparison': 'Porovnanie Modelov & Analýza Chýb (Model Predictions vs Actual Returns)',
+        'strategy_performance': 'Výkonnosť Stratégie & Metriky Rizika (Strategy Performance)',
+        'prediction_stability': 'Stabilita Predikcií & Zhoda Modelov (Prediction Stability)',
+        'feature_analysis': 'Analýza Atribútov & Korelácie (Feature Importance)'
     }
 
     for chart_name, chart_path in data['plots'].items():
@@ -268,7 +268,7 @@ def create_pdf_report(data: dict, output_path: str) -> None:
 
     # Conclusions
     story.append(PageBreak())
-    story.append(Paragraph("Conclusions & Recommendations", styles['Heading1']))
+    story.append(Paragraph("Závery & Odporúčania (Conclusions)", styles['Heading1']))
     story.append(Spacer(1, 12))
 
     # Calculate dynamic DA range
@@ -282,19 +282,19 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         min_da, max_da, bh_da = 0, 0, 0
 
     conclusion_text = f"""
-    Based on the comprehensive ML analysis of {data['ticker']}, the following conclusions can be drawn:
+    Na základe komplexnej ML analýzy akcie {data['ticker']} je možné vyvodiť nasledujúce závery:
 
-    1. <b>Model Performance:</b> The machine learning models achieve raw directional accuracies ranging from {min_da:.1%} to {max_da:.1%}, compared to the Buy &amp; Hold baseline of {bh_da:.1%}.
+    1. <b>Výkonnosť Modelov:</b> Modely strojového učenia dosahujú raw smerovú presnosť (Raw DA) v rozsahu od {min_da:.1%} do {max_da:.1%}, v porovnaní s Buy &amp; Hold baseline {bh_da:.1%}.
 
-    2. <b>Best Model:</b> {best_model if 'best_model' in locals() else 'XGBoost'} provides the most reliable predictions for trading decisions.
+    2. <b>Najlepší Model:</b> {best_model if 'best_model' in locals() else 'XGBoost'} poskytuje najspoľahlivejšie predikcie pre obchodné rozhodnutia.
 
-    3. <b>Risk Management:</b> The implemented threshold-based strategy (0.2% threshold) effectively reduces false signals and improves signal quality.
+    3. <b>Riadenie Rizík:</b> Implementovaná stratégia založená na prahu (0.2%) efektívne redukuje falošné signály a zlepšuje kvalitu signálov.
 
-    4. <b>Implementation:</b> Consider implementing the recommended trading strategy with proper position sizing and risk management protocols.
+    4. <b>Implementácia:</b> Zvážte implementáciu odporúčanej obchodnej stratégie s primeraným dimenzovaním pozícií a protokolmi riadenia rizík.
 
-    5. <b>Monitoring:</b> Regular model retraining and performance monitoring is essential for maintaining predictive accuracy.
+    5. <b>Monitorovanie:</b> Pravidelné pretrénovanie modelov a monitorovanie výkonnosti je nevyhnutné pre udržanie presnosti predikcií.
 
-    <b>Disclaimer:</b> This analysis is for informational purposes only and should not be considered as financial advice.
+    <b>Vylúčenie Zodpovednosti (Disclaimer):</b> Táto analýza slúži len na informačné účely a nemala by byť považovaná za finančné poradenstvo.
     """
 
     story.append(Paragraph(conclusion_text, normal_style))
@@ -307,11 +307,11 @@ def create_html_report(data: dict, output_path: str) -> None:
     """Create comprehensive HTML report"""
     html_content = f"""
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="sk">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ML Stock Forecasting Report - {data['ticker']}</title>
+        <title>ML Report Predikcie Akcií - {data['ticker']}</title>
         <style>
             body {{
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -459,24 +459,24 @@ def create_html_report(data: dict, output_path: str) -> None:
     </head>
     <body>
         <div class="header">
-            <h1>🤖 ML Stock Forecasting Report</h1>
-            <h2>{data['ticker']} Analysis</h2>
-            <p>Generated on: {data['generation_date']}</p>
+            <h1>🤖 ML Report Predikcie Akcií</h1>
+            <h2>Analýza pre {data['ticker']}</h2>
+            <p>Vygenerované dňa: {data['generation_date']}</p>
         </div>
 
         <div class="section">
-            <h2>📋 Trading Strategy Overview</h2>
-            <p>This analysis uses a <strong>daily-signal threshold strategy</strong>. Each model produces one prediction per trading day — an expected log-return for the next day. The trading rules are:</p>
+            <h2>📋 Prehľad Obchodnej Stratégie (Trading Strategy Overview)</h2>
+            <p>Táto analýza využíva <strong>daily-signal threshold strategy</strong> (stratégiu denného prahu signálu). Každý model generuje jednu predikciu na obchodný deň — očakávaný log-výnos na nasledujúci deň. Pravidlá obchodovania sú:</p>
             <ul>
-                <li><strong>BUY</strong> — if the predicted return exceeds the signal threshold (+0.2%), the model signals to enter a long position at market open and close it at the end of the day.</li>
-                <li><strong>HOLD / CASH</strong> — if the predicted return is below the threshold, the model stays out of the market (no position).</li>
-                <li><strong>Maximum 1 trade per day</strong> — the model generates exactly one signal per trading day. There is no intraday re-entry or multiple transactions.</li>
+                <li><strong>BUY (NÁKUP)</strong> — ak predikovaný výnos prekročí prah signálu (+0.2%), model signalizuje otvorenie long pozície pri otvorení trhu a jej uzavretie na konci dňa.</li>
+                <li><strong>HOLD / CASH (DRŽAŤ / HOTOVOSŤ)</strong> — ak je predikovaný výnos pod prahom, model zostáva mimo trhu (žiadna pozícia).</li>
+                <li><strong>Maximálne 1 obchod denne</strong> — model generuje presne jeden signál na obchodný deň. Žiadne intraday vstupy alebo viacnásobné transakcie.</li>
             </ul>
-            <p><em>Coverage</em> in the metrics table shows what fraction of days the model actually traded (signal exceeded threshold). The remaining days the model sat in cash, avoiding uncertain moves.</p>
+            <p><em>Coverage</em> v tabuľke metrík ukazuje, v akej časti dní model skutočne obchodoval (signál prekročil prah). Zvyšné dni model zostal v hotovosti, vyhýbajúc sa neistým pohybom.</p>
         </div>
 
         <div class="section">
-            <h2>🎯 Next Day Trading Recommendation</h2>
+            <h2>🎯 Odporúčanie pre Zajtrajšie Obchodovanie</h2>
     """
 
     if data['next_day_prediction']:
