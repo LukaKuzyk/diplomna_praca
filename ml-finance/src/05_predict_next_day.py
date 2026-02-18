@@ -113,9 +113,20 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     # Get predictions from all ML models
     ml_predictions = ml_predictor.predict_all(next_day_features)
 
-    # Get the best model prediction (using the one with highest directional accuracy from backtesting)
-    # For simplicity, use XGB if available, otherwise the first available
+    # Load directional accuracy metrics
+    da_metrics = load_model_metrics(ticker)
+    bh_acc = da_metrics.pop('_bh_accuracy', buy_and_hold_accuracy(df_features['log_ret'].dropna()))
+
+    # Pick primary model as the one with highest Raw DA from backtesting
+    best_da = 0
     primary_model = 'xgb' if 'xgb' in ml_predictions else list(ml_predictions.keys())[0]
+    for model_key in ml_predictions:
+        da_entry = da_metrics.get(model_key, {})
+        raw_da = da_entry.get('raw_da', 0) if isinstance(da_entry, dict) else da_entry
+        if raw_da > best_da:
+            best_da = raw_da
+            primary_model = model_key
+
     predicted_log_ret_ml = ml_predictions[primary_model]
 
     # Get last known close price
@@ -129,10 +140,6 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
 
     # Add main ML prediction
     predictions['ML'] = {'log_ret': predicted_log_ret_ml, 'close': last_close * np.exp(predicted_log_ret_ml)}
-
-    # Load directional accuracy metrics
-    da_metrics = load_model_metrics(ticker)
-    bh_acc = da_metrics.pop('_bh_accuracy', buy_and_hold_accuracy(df_features['log_ret'].dropna()))
 
     # Overall recommendation based on threshold logic (only-long strategy)
     threshold = SIGNAL_THRESHOLD
@@ -295,7 +302,10 @@ def main():
         with open(output_file, 'w') as f:
             f.write(f"Best Model: {result['primary_model']}\n")
             f.write(f"Predicted Return: {result['expected_return_pct']:.6f}\n")
-            f.write(f"Confidence: {da_metrics.get(result['primary_model'].lower(), 0):.6f}\n")
+            primary_da = da_metrics.get(result['primary_model'].lower(), {})
+            raw_da = primary_da.get('raw_da', 0) if isinstance(primary_da, dict) else primary_da
+            f.write(f"Raw_DA: {raw_da:.6f}\n")
+            f.write(f"Buy_Hold_DA: {result['bh_accuracy']:.6f}\n")
             f.write(f"Recommendation: {result['recommendation']}\n")
             f.write(f"Last Close: {result['last_close']:.2f}\n")
             f.write(f"Last Date: {result['last_date']}\n")

@@ -1,38 +1,62 @@
 ML Models Performance Summary
 ========================================
 
+Baseline:
+  Buy_and_Hold_DA: 0.514011
+
 ML_LINEAR_Returns:
   RMSE: 0.027074
   MAE: 0.018425
-  Directional_Accuracy: 0.731278
+  Raw_DA: 0.732510
+  Confident_DA: 0.731278
+  Coverage: 0.934156
+  Total_Test_Days: 243.000000
 
 ML_RF_Returns:
-  RMSE: 0.014868
-  MAE: 0.009020
-  Directional_Accuracy: 0.886364
+  RMSE: 0.014901
+  MAE: 0.009035
+  Raw_DA: 0.847737
+  Confident_DA: 0.886364
+  Coverage: 0.905350
+  Total_Test_Days: 243.000000
 
 ML_XGB_Returns:
   RMSE: 0.013794
   MAE: 0.008420
-  Directional_Accuracy: 0.876652
+  Raw_DA: 0.868313
+  Confident_DA: 0.876652
+  Coverage: 0.934156
+  Total_Test_Days: 243.000000
 
 ML_GBR_Returns:
-  RMSE: 0.014452
-  MAE: 0.008996
-  Directional_Accuracy: 0.886957
+  RMSE: 0.014137
+  MAE: 0.008831
+  Raw_DA: 0.851852
+  Confident_DA: 0.883117
+  Coverage: 0.950617
+  Total_Test_Days: 243.000000
 
 ML_ELASTICNET_Returns:
   RMSE: 0.017832
   MAE: 0.011925
-  Directional_Accuracy: 0.765625
+  Raw_DA: 0.724280
+  Confident_DA: 0.765625
+  Coverage: 0.790123
+  Total_Test_Days: 243.000000
 
 ML_EXTRATREES_Returns:
-  RMSE: 0.014202
-  MAE: 0.009469
-  Directional_Accuracy: 0.868778
+  RMSE: 0.014234
+  MAE: 0.009478
+  Raw_DA: 0.839506
+  Confident_DA: 0.868778
+  Coverage: 0.909465
+  Total_Test_Days: 243.000000
 
 ML_SGD_Returns:
   RMSE: 0.030236
   MAE: 0.017245
-  Directional_Accuracy: 0.780269
+  Raw_DA: 0.753086
+  Confident_DA: 0.780269
+  Coverage: 0.917695
+  Total_Test_Days: 243.000000
 

@@ -530,6 +530,7 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
             ml_metrics['Raw_DA'] = da['raw_da']
             ml_metrics['Confident_DA'] = da['confident_da']
             ml_metrics['Coverage'] = da['coverage']
+            ml_metrics['Total_Test_Days'] = int(mask.sum())
             metrics[f'ML_{model_name}_Returns'] = ml_metrics
 
     return metrics

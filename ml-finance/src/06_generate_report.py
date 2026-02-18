@@ -48,7 +48,10 @@ def load_metrics_data(ticker: str) -> dict:
             current_model = None
             for line in lines:
                 line = line.strip()
-                if line.endswith('_Returns:'):
+                if line == 'Baseline:':
+                    current_model = 'Baseline'
+                    data['metrics']['Baseline'] = {}
+                elif line.endswith('_Returns:'):
                     current_model = line.replace('_Returns:', '')
                     data['metrics'][current_model] = {}
                 elif line and ':' in line and current_model:
@@ -75,9 +78,14 @@ def load_metrics_data(ticker: str) -> dict:
                         data['next_day_prediction']['predicted_return'] = float(line.split(':')[1].strip())
                     except:
                         pass
-                elif 'Confidence:' in line:
+                elif 'Raw_DA:' in line:
                     try:
-                        data['next_day_prediction']['confidence'] = float(line.split(':')[1].strip().replace('%', ''))
+                        data['next_day_prediction']['raw_da'] = float(line.split(':')[1].strip())
+                    except:
+                        pass
+                elif 'Buy_Hold_DA:' in line:
+                    try:
+                        data['next_day_prediction']['bh_da'] = float(line.split(':')[1].strip())
                     except:
                         pass
                 elif 'Recommendation:' in line:
@@ -157,14 +165,18 @@ def create_pdf_report(data: dict, output_path: str) -> None:
     story.append(Spacer(1, 12))
 
     if data['metrics']:
-        best_model = max(data['metrics'].keys(),
-                        key=lambda x: data['metrics'][x].get('Directional_Accuracy', 0))
-        best_accuracy = data['metrics'][best_model].get('Directional_Accuracy', 0)
+        model_metrics = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
+        if model_metrics:
+            best_model = max(model_metrics.keys(),
+                            key=lambda x: model_metrics[x].get('Raw_DA', 0))
+            best_raw_da = model_metrics[best_model].get('Raw_DA', 0)
+            bh_da = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
 
-        summary_text = f"""
-        This report presents a comprehensive analysis of {data['ticker']} stock using advanced machine learning models.
-        The best performing model is <b>{best_model}</b> with a directional accuracy of <b>{best_accuracy:.1%}</b>.
-        """
+            summary_text = f"""
+            This report presents a comprehensive analysis of {data['ticker']} stock using advanced machine learning models.
+            The best performing model is <b>{best_model}</b> with a raw directional accuracy of <b>{best_raw_da:.1%}</b>
+            (vs Buy &amp; Hold baseline of {bh_da:.1%}).
+            """
 
         if data['next_day_prediction']:
             recommendation = data['next_day_prediction'].get('recommendation', 'HOLD')
@@ -183,16 +195,26 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         story.append(Spacer(1, 12))
 
         # Prepare table data
-        headers = ['Model', 'RMSE', 'MAE', 'Directional Accuracy']
+        headers = ['Model', 'RMSE', 'MAE', 'Raw DA', 'Confident DA', 'Coverage']
         table_data = [headers]
 
         for model, metrics in data['metrics'].items():
-            row = [
-                model.replace('ML_', ''),
-                '.4f',
-                '.4f',
-                '.1%'
-            ]
+            if model == 'Baseline':
+                row = [
+                    'Buy & Hold (baseline)',
+                    '—', '—',
+                    f"{metrics.get('Buy_and_Hold_DA', 0):.1%}",
+                    '—', '100.0%'
+                ]
+            else:
+                row = [
+                    model.replace('ML_', ''),
+                    f"{metrics.get('RMSE', 0):.4f}",
+                    f"{metrics.get('MAE', 0):.4f}",
+                    f"{metrics.get('Raw_DA', 0):.1%}",
+                    f"{metrics.get('Confident_DA', 0):.1%}",
+                    f"{metrics.get('Coverage', 0):.1%}"
+                ]
             table_data.append(row)
 
         # Create table
@@ -209,8 +231,9 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         pred_data = [
             ['Metric', 'Value'],
             ['Best Model', data['next_day_prediction'].get('best_model', 'N/A')],
-            ['Predicted Return', '.2%'],
-            ['Confidence Level', '.1%'],
+            ['Predicted Return', f"{data['next_day_prediction'].get('predicted_return', 0) / 100:.2%}"],
+            ['Raw DA', f"{data['next_day_prediction'].get('raw_da', 0):.1%}"],
+            ['Buy & Hold DA', f"{data['next_day_prediction'].get('bh_da', 0):.1%}"],
             ['Recommendation', data['next_day_prediction'].get('recommendation', 'HOLD')]
         ]
 
@@ -250,16 +273,18 @@ def create_pdf_report(data: dict, output_path: str) -> None:
 
     # Calculate dynamic DA range
     if data['metrics']:
-        da_values = [metrics.get('Directional_Accuracy', 0) for metrics in data['metrics'].values()]
+        model_metrics = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
+        da_values = [metrics.get('Raw_DA', 0) for metrics in model_metrics.values()]
         min_da = min(da_values) if da_values else 0
         max_da = max(da_values) if da_values else 0
+        bh_da = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
     else:
-        min_da, max_da = 0, 0
+        min_da, max_da, bh_da = 0, 0, 0
 
     conclusion_text = f"""
     Based on the comprehensive ML analysis of {data['ticker']}, the following conclusions can be drawn:
 
-    1. <b>Model Performance:</b> The machine learning models demonstrate strong predictive capabilities with directional accuracies ranging from {min_da:.1%} to {max_da:.1%}.
+    1. <b>Model Performance:</b> The machine learning models achieve raw directional accuracies ranging from {min_da:.1%} to {max_da:.1%}, compared to the Buy &amp; Hold baseline of {bh_da:.1%}.
 
     2. <b>Best Model:</b> {best_model if 'best_model' in locals() else 'XGBoost'} provides the most reliable predictions for trading decisions.
 
@@ -357,6 +382,79 @@ def create_html_report(data: dict, output_path: str) -> None:
                 font-weight: bold;
                 color: #4CAF50;
             }}
+            .metrics-table th {{
+                cursor: pointer;
+                user-select: none;
+                position: relative;
+                padding-right: 20px;
+            }}
+            .metrics-table th:hover {{
+                background-color: #45a049;
+            }}
+            .metrics-table th::after {{
+                content: '⇅';
+                position: absolute;
+                right: 6px;
+                opacity: 0.4;
+                font-size: 0.8em;
+            }}
+            .metrics-table th.sort-asc::after {{
+                content: '↑';
+                opacity: 1;
+            }}
+            .metrics-table th.sort-desc::after {{
+                content: '↓';
+                opacity: 1;
+            }}
+            .chart-container img {{
+                cursor: zoom-in;
+                transition: transform 0.2s;
+            }}
+            .chart-container img:hover {{
+                transform: scale(1.02);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            }}
+            .lightbox {{
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.85);
+                z-index: 9999;
+                justify-content: center;
+                align-items: center;
+                cursor: zoom-out;
+            }}
+            .lightbox.active {{
+                display: flex;
+            }}
+            .lightbox img {{
+                max-width: 95%;
+                max-height: 95%;
+                border-radius: 8px;
+                box-shadow: 0 0 40px rgba(0,0,0,0.5);
+            }}
+            .lightbox-close {{
+                position: absolute;
+                top: 20px;
+                right: 30px;
+                color: white;
+                font-size: 36px;
+                cursor: pointer;
+                z-index: 10000;
+                background: rgba(0,0,0,0.5);
+                border-radius: 50%;
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }}
+            .lightbox-close:hover {{
+                background: rgba(255,255,255,0.2);
+            }}
         </style>
     </head>
     <body>
@@ -367,19 +465,31 @@ def create_html_report(data: dict, output_path: str) -> None:
         </div>
 
         <div class="section">
+            <h2>📋 Trading Strategy Overview</h2>
+            <p>This analysis uses a <strong>daily-signal threshold strategy</strong>. Each model produces one prediction per trading day — an expected log-return for the next day. The trading rules are:</p>
+            <ul>
+                <li><strong>BUY</strong> — if the predicted return exceeds the signal threshold (+0.2%), the model signals to enter a long position at market open and close it at the end of the day.</li>
+                <li><strong>HOLD / CASH</strong> — if the predicted return is below the threshold, the model stays out of the market (no position).</li>
+                <li><strong>Maximum 1 trade per day</strong> — the model generates exactly one signal per trading day. There is no intraday re-entry or multiple transactions.</li>
+            </ul>
+            <p><em>Coverage</em> in the metrics table shows what fraction of days the model actually traded (signal exceeded threshold). The remaining days the model sat in cash, avoiding uncertain moves.</p>
+        </div>
+
+        <div class="section">
             <h2>🎯 Next Day Trading Recommendation</h2>
     """
 
     if data['next_day_prediction']:
         recommendation = data['next_day_prediction'].get('recommendation', 'HOLD')
         pred_return = data['next_day_prediction'].get('predicted_return', 0) / 100  # Convert from percentage to decimal
-        confidence = data['next_day_prediction'].get('confidence', 0)
+        confidence = data['next_day_prediction'].get('raw_da', 0)
+        bh_da = data['next_day_prediction'].get('bh_da', 0)
 
         html_content += f"""
             <div class="recommendation">
                 <p><strong>Action:</strong> {recommendation}</p>
                 <p><strong>Expected Return:</strong> {pred_return:.2%}</p>
-                <p><strong>Confidence:</strong> {confidence:.1%}</p>
+                <p><strong>Raw DA:</strong> {confidence:.1%} (Buy & Hold baseline: {bh_da:.1%})</p>
             </div>
         """
 
@@ -406,14 +516,18 @@ def create_html_report(data: dict, output_path: str) -> None:
     """
 
     if data['metrics']:
-        best_model = max(data['metrics'].keys(),
-                         key=lambda x: data['metrics'][x].get('Directional_Accuracy', 0))
-        best_accuracy = data['metrics'][best_model].get('Directional_Accuracy', 0)
+        model_metrics_html = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
+        if model_metrics_html:
+            best_model_html = max(model_metrics_html.keys(),
+                             key=lambda x: model_metrics_html[x].get('Raw_DA', 0))
+            best_raw_da = model_metrics_html[best_model_html].get('Raw_DA', 0)
+            bh_da_html = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
 
-        html_content += f"""
-            <p>This comprehensive ML analysis of <strong>{data['ticker']}</strong> demonstrates strong predictive capabilities
-            with the best performing model achieving <span class="metric-highlight">{best_accuracy:.1%}</span> directional accuracy.</p>
-        """
+            html_content += f"""
+                <p>This comprehensive ML analysis of <strong>{data['ticker']}</strong> achieves
+                a best raw directional accuracy of <span class="metric-highlight">{best_raw_da:.1%}</span>
+                (vs Buy &amp; Hold baseline of {bh_da_html:.1%}).</p>
+            """
 
     html_content += """
         </div>
@@ -426,7 +540,10 @@ def create_html_report(data: dict, output_path: str) -> None:
                         <th>Model</th>
                         <th>RMSE</th>
                         <th>MAE</th>
-                        <th>Directional Accuracy</th>
+                        <th>Raw DA</th>
+                        <th>Confident DA</th>
+                        <th>Coverage</th>
+                        <th>Trades</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -434,18 +551,52 @@ def create_html_report(data: dict, output_path: str) -> None:
 
     if data['metrics']:
         for model, metrics in data['metrics'].items():
-            html_content += f"""
+            if model == 'Baseline':
+                bh_val = metrics.get('Buy_and_Hold_DA', 0)
+                html_content += f"""
+                    <tr style="background-color: #e8e8e8; font-style: italic;">
+                        <td>Buy &amp; Hold (baseline)</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>{bh_val:.1%}</td>
+                        <td>—</td>
+                        <td>100.0%</td>
+                        <td>—</td>
+                    </tr>
+                """
+            else:
+                total_days = int(metrics.get('Total_Test_Days', 0))
+                coverage = metrics.get('Coverage', 0)
+                trades = int(round(coverage * total_days))
+                trades_str = f"{trades} / {total_days}" if total_days > 0 else "—"
+                html_content += f"""
                     <tr>
                         <td>{model.replace('ML_', '')}</td>
                         <td>{metrics.get('RMSE', 0):.4f}</td>
                         <td>{metrics.get('MAE', 0):.4f}</td>
-                        <td>{metrics.get('Directional_Accuracy', 0):.1%}</td>
+                        <td>{metrics.get('Raw_DA', 0):.1%}</td>
+                        <td>{metrics.get('Confident_DA', 0):.1%}</td>
+                        <td>{coverage:.1%}</td>
+                        <td>{trades_str}</td>
                     </tr>
-            """
+                """
 
     html_content += """
                 </tbody>
             </table>
+
+            <div style="margin-top: 20px; padding: 15px; background-color: #f0f4ff; border-radius: 8px; font-size: 0.9em;">
+                <h4 style="margin-top: 0;">📖 Metric Descriptions</h4>
+                <ul style="margin-bottom: 0;">
+                    <li><strong>RMSE</strong> (Root Mean Squared Error) — average magnitude of prediction errors, penalizing larger errors more heavily. Lower is better.</li>
+                    <li><strong>MAE</strong> (Mean Absolute Error) — average absolute difference between predicted and actual log-returns. Lower is better.</li>
+                    <li><strong>Raw DA</strong> (Raw Directional Accuracy) — percentage of days where the model correctly predicted the direction of price movement (up/down), calculated on <em>all</em> trading days without any filtering.</li>
+                    <li><strong>Confident DA</strong> (High-Confidence Directional Accuracy) — directional accuracy calculated only on days where the model's predicted return exceeded the signal threshold (&plusmn;0.2%). Represents the trading strategy accuracy — the model trades only when confident.</li>
+                    <li><strong>Coverage</strong> — fraction of trading days where the model generates a trading signal (|prediction| &gt; threshold). Higher coverage = more frequent trading.</li>
+                    <li><strong>Trades</strong> — absolute number of days the model traded out of total test days (e.g. "228 / 251" means the model traded on 228 out of 251 available days).</li>
+                    <li><strong>Buy &amp; Hold (baseline)</strong> — directional accuracy of a naive strategy that always predicts "price goes up". Equals the percentage of days the market actually rose. Models should exceed this to demonstrate real predictive power.</li>
+                </ul>
+            </div>
         </div>
     """
 
@@ -474,18 +625,20 @@ def create_html_report(data: dict, output_path: str) -> None:
 
     # Calculate dynamic DA range for HTML
     if data['metrics']:
-        da_values = [metrics.get('Directional_Accuracy', 0) for metrics in data['metrics'].values()]
-        min_da = min(da_values) if da_values else 0
-        max_da = max(da_values) if da_values else 0
+        model_metrics_concl = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
+        da_values = [metrics.get('Raw_DA', 0) for metrics in model_metrics_concl.values()]
+        min_da_html = min(da_values) if da_values else 0
+        max_da_html = max(da_values) if da_values else 0
+        bh_da_concl = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
     else:
-        min_da, max_da = 0, 0
+        min_da_html, max_da_html, bh_da_concl = 0, 0, 0
 
     # Conclusions
     html_content += f"""
         <div class="section">
             <h2>🎯 Conclusions & Recommendations</h2>
             <ul>
-                <li><strong>Model Performance:</strong> ML models demonstrate strong predictive capabilities with directional accuracies ranging from {min_da:.1%} to {max_da:.1%}</li>
+                <li><strong>Model Performance:</strong> ML models achieve raw directional accuracies from {min_da_html:.1%} to {max_da_html:.1%} (Buy &amp; Hold baseline: {bh_da_concl:.1%})</li>
                 <li><strong>Risk Management:</strong> Threshold-based strategy (0.2% threshold) effectively reduces false signals and improves signal quality</li>
                 <li><strong>Implementation:</strong> Consider implementing the recommended trading strategy with proper position sizing and risk management protocols</li>
                 <li><strong>Monitoring:</strong> Regular model retraining and performance monitoring is essential for maintaining predictive accuracy</li>
@@ -499,6 +652,63 @@ def create_html_report(data: dict, output_path: str) -> None:
             Past performance does not guarantee future results. Always conduct your own research and consult with
             qualified financial advisors before making investment decisions.</p>
         </div>
+        <div class="lightbox" id="lightbox">
+            <span class="lightbox-close" id="lightbox-close">&times;</span>
+            <img id="lightbox-img" src="" alt="">
+        </div>
+
+        <script>
+        // Sortable table
+        document.querySelectorAll('.metrics-table th').forEach(function(th) {{
+            th.addEventListener('click', function() {{
+                var table = th.closest('table');
+                var tbody = table.querySelector('tbody');
+                var rows = Array.from(tbody.querySelectorAll('tr'));
+                var colIndex = Array.from(th.parentNode.children).indexOf(th);
+                var isAsc = th.classList.contains('sort-asc');
+
+                table.querySelectorAll('th').forEach(function(h) {{
+                    h.classList.remove('sort-asc', 'sort-desc');
+                }});
+
+                rows.sort(function(a, b) {{
+                    var aText = a.children[colIndex].textContent.trim();
+                    var bText = b.children[colIndex].textContent.trim();
+
+                    // Parse numbers: handle percentages, fractions, dashes
+                    var aNum = parseFloat(aText.replace('%', '').split('/')[0]);
+                    var bNum = parseFloat(bText.replace('%', '').split('/')[0]);
+
+                    if (!isNaN(aNum) && !isNaN(bNum)) {{
+                        return isAsc ? bNum - aNum : aNum - bNum;
+                    }}
+                    return isAsc ? bText.localeCompare(aText) : aText.localeCompare(bText);
+                }});
+
+                th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+                rows.forEach(function(row) {{ tbody.appendChild(row); }});
+            }});
+        }});
+
+        // Image lightbox
+        var lightbox = document.getElementById('lightbox');
+        var lightboxImg = document.getElementById('lightbox-img');
+
+        document.querySelectorAll('.chart-container img').forEach(function(img) {{
+            img.addEventListener('click', function() {{
+                lightboxImg.src = img.src;
+                lightbox.classList.add('active');
+            }});
+        }});
+
+        lightbox.addEventListener('click', function() {{
+            lightbox.classList.remove('active');
+        }});
+
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape') lightbox.classList.remove('active');
+        }});
+        </script>
     </body>
     </html>
     """
