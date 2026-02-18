@@ -465,18 +465,18 @@ def create_html_report(data: dict, output_path: str) -> None:
         </div>
 
         <div class="section">
-            <h2>📋 Prehľad Obchodnej Stratégie (Trading Strategy Overview)</h2>
+            <h2>📋 Trading Strategy Overview </h2>
             <p>Táto analýza využíva <strong>daily-signal threshold strategy</strong> (stratégiu denného prahu signálu). Každý model generuje jednu predikciu na obchodný deň — očakávaný log-výnos na nasledujúci deň. Pravidlá obchodovania sú:</p>
             <ul>
-                <li><strong>BUY (NÁKUP)</strong> — ak predikovaný výnos prekročí prah signálu (+0.2%), model signalizuje otvorenie long pozície pri otvorení trhu a jej uzavretie na konci dňa.</li>
-                <li><strong>HOLD / CASH (DRŽAŤ / HOTOVOSŤ)</strong> — ak je predikovaný výnos pod prahom, model zostáva mimo trhu (žiadna pozícia).</li>
+                <li><strong>BUY</strong> — ak predikovaný výnos prekročí prah signálu (+0.2%), model signalizuje otvorenie long pozície pri otvorení trhu a jej uzavretie na konci dňa.</li>
+                <li><strong>HOLD / CASH</strong> — ak je predikovaný výnos pod prahom, model zostáva mimo trhu (žiadna pozícia).</li>
                 <li><strong>Maximálne 1 obchod denne</strong> — model generuje presne jeden signál na obchodný deň. Žiadne intraday vstupy alebo viacnásobné transakcie.</li>
             </ul>
             <p><em>Coverage</em> v tabuľke metrík ukazuje, v akej časti dní model skutočne obchodoval (signál prekročil prah). Zvyšné dni model zostal v hotovosti, vyhýbajúc sa neistým pohybom.</p>
         </div>
 
         <div class="section">
-            <h2>🎯 Odporúčanie pre Zajtrajšie Obchodovanie</h2>
+            <h2>🎯 Next Day Trading Recommendation</h2>
     """
 
     if data['next_day_prediction']:
@@ -524,9 +524,9 @@ def create_html_report(data: dict, output_path: str) -> None:
             bh_da_html = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
 
             html_content += f"""
-                <p>This comprehensive ML analysis of <strong>{data['ticker']}</strong> achieves
-                a best raw directional accuracy of <span class="metric-highlight">{best_raw_da:.1%}</span>
-                (vs Buy &amp; Hold baseline of {bh_da_html:.1%}).</p>
+                <p>Táto komplexná ML analýza akcie <strong>{data['ticker']}</strong> dosahuje
+                najlepšiu raw smerovú presnosť (Raw DA) <span class="metric-highlight">{best_raw_da:.1%}</span>
+                (oproti Buy &amp; Hold baseline {bh_da_html:.1%}).</p>
             """
 
     html_content += """
@@ -555,7 +555,7 @@ def create_html_report(data: dict, output_path: str) -> None:
                 bh_val = metrics.get('Buy_and_Hold_DA', 0)
                 html_content += f"""
                     <tr style="background-color: #e8e8e8; font-style: italic;">
-                        <td>Buy &amp; Hold (baseline)</td>
+                        <td>Buy &amp; Hold</td>
                         <td>—</td>
                         <td>—</td>
                         <td>{bh_val:.1%}</td>
@@ -586,15 +586,15 @@ def create_html_report(data: dict, output_path: str) -> None:
             </table>
 
             <div style="margin-top: 20px; padding: 15px; background-color: #f0f4ff; border-radius: 8px; font-size: 0.9em;">
-                <h4 style="margin-top: 0;">📖 Metric Descriptions</h4>
+                <h4 style="margin-top: 0;">📖 Popis Metrík</h4>
                 <ul style="margin-bottom: 0;">
-                    <li><strong>RMSE</strong> (Root Mean Squared Error) — average magnitude of prediction errors, penalizing larger errors more heavily. Lower is better.</li>
-                    <li><strong>MAE</strong> (Mean Absolute Error) — average absolute difference between predicted and actual log-returns. Lower is better.</li>
-                    <li><strong>Raw DA</strong> (Raw Directional Accuracy) — percentage of days where the model correctly predicted the direction of price movement (up/down), calculated on <em>all</em> trading days without any filtering.</li>
-                    <li><strong>Confident DA</strong> (High-Confidence Directional Accuracy) — directional accuracy calculated only on days where the model's predicted return exceeded the signal threshold (&plusmn;0.2%). Represents the trading strategy accuracy — the model trades only when confident.</li>
-                    <li><strong>Coverage</strong> — fraction of trading days where the model generates a trading signal (|prediction| &gt; threshold). Higher coverage = more frequent trading.</li>
-                    <li><strong>Trades</strong> — absolute number of days the model traded out of total test days (e.g. "228 / 251" means the model traded on 228 out of 251 available days).</li>
-                    <li><strong>Buy &amp; Hold (baseline)</strong> — directional accuracy of a naive strategy that always predicts "price goes up". Equals the percentage of days the market actually rose. Models should exceed this to demonstrate real predictive power.</li>
+                    <li><strong>RMSE</strong> (Root Mean Squared Error) — priemerná veľkosť chýb predikcie, penalizuje väčšie chyby výraznejšie. Čím nižšie, tým lepšie.</li>
+                    <li><strong>MAE</strong> (Mean Absolute Error) — priemerný absolútny rozdiel medzi predikovanými a skutočnými log-výnosmi. Čím nižšie, tým lepšie.</li>
+                    <li><strong>Raw DA</strong> (Raw Directional Accuracy) — percento dní, kedy model správne predikoval smer pohybu ceny (hore/dole), počítané na <em>všetkých</em> obchodných dňoch bez filtrovania.</li>
+                    <li><strong>Confident DA</strong> (High-Confidence Directional Accuracy) — smerová presnosť počítaná len v dňoch, kedy predikovaný výnos modelu prekročil prah signálu (&plusmn;0.2%). Reprezentuje presnosť obchodnej stratégie — model obchoduje len keď je si istý.</li>
+                    <li><strong>Coverage</strong> — podiel obchodných dní, kedy model generuje obchodný signál (|prediction| &gt; prah). Vyššie coverage = častejšie obchodovanie.</li>
+                    <li><strong>Trades</strong> — absolútny počet dní, kedy model obchodoval z celkového počtu testovacích dní (napr. "228 / 251" znamená, že model obchodoval 228 z 251 dostupných dní).</li>
+                    <li><strong>Buy &amp; Hold</strong> — smerová presnosť naivnej stratégie, ktorá vždy predikuje "cena pôjde hore". Rovná sa percentu dní, kedy trh skutočne rástol. Modely by mali túto hodnotu prekonať, aby preukázali skutočnú predikčnú schopnosť.</li>
                 </ul>
             </div>
         </div>
@@ -636,21 +636,21 @@ def create_html_report(data: dict, output_path: str) -> None:
     # Conclusions
     html_content += f"""
         <div class="section">
-            <h2>🎯 Conclusions & Recommendations</h2>
+            <h2>🎯 Závery & Odporúčania (Conclusions)</h2>
             <ul>
-                <li><strong>Model Performance:</strong> ML models achieve raw directional accuracies from {min_da_html:.1%} to {max_da_html:.1%} (Buy &amp; Hold baseline: {bh_da_concl:.1%})</li>
-                <li><strong>Risk Management:</strong> Threshold-based strategy (0.2% threshold) effectively reduces false signals and improves signal quality</li>
-                <li><strong>Implementation:</strong> Consider implementing the recommended trading strategy with proper position sizing and risk management protocols</li>
-                <li><strong>Monitoring:</strong> Regular model retraining and performance monitoring is essential for maintaining predictive accuracy</li>
-                <li><strong>Next Steps:</strong> Focus on the best performing model (XGBoost) for production deployment with continuous validation</li>
+                <li><strong>Výkonnosť Modelov:</strong> ML modely dosahujú raw smerovú presnosť od {min_da_html:.1%} do {max_da_html:.1%} (Buy &amp; Hold baseline: {bh_da_concl:.1%})</li>
+                <li><strong>Riadenie Rizík:</strong> Stratégia založená na prahu (0.2%) efektívne redukuje falošné signály a zlepšuje kvalitu signálov</li>
+                <li><strong>Implementácia:</strong> Zvážte implementáciu odporúčanej obchodnej stratégie s primeraným dimenzovaním pozícií a protokolmi riadenia rizík</li>
+                <li><strong>Monitorovanie:</strong> Pravidelné pretrénovanie modelov a monitorovanie výkonnosti je nevyhnutné pre udržanie presnosti predikcií</li>
+                <li><strong>Ďalšie Kroky:</strong> Zamerajte sa na najvýkonnejší model (XGBoost/RF) pre nasadenie do produkcie s kontinuálnou validáciou</li>
             </ul>
         </div>
 
         <div class="disclaimer">
             <h3>⚠️ Disclaimer</h3>
-            <p>This analysis is for informational purposes only and should not be considered as financial advice.
-            Past performance does not guarantee future results. Always conduct your own research and consult with
-            qualified financial advisors before making investment decisions.</p>
+            <p>Táto analýza slúži len na informačné účely a nemala by byť považovaná za finančné poradenstvo.
+            Minulá výkonnosť nie je zárukou budúcich výsledkov. Pred investičným rozhodnutím vždy vykonajte vlastný
+            prieskum a poraďte sa s kvalifikovanými finančnými poradcami.</p>
         </div>
         <div class="lightbox" id="lightbox">
             <span class="lightbox-close" id="lightbox-close">&times;</span>
@@ -724,8 +724,8 @@ def main():
 
     parser = argparse.ArgumentParser(description='Generate comprehensive ML analysis report')
     parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
-    parser.add_argument('--format', type=str, choices=['pdf', 'html', 'both'], default='both',
-                       help='Report format (default: both)')
+    parser.add_argument('--format', type=str, choices=['pdf', 'html', 'both'], default='html',
+                       help='Report format (default: html)')
     parser.add_argument('--output-dir', type=str, default='reports',
                        help='Output directory (default: reports)')
 
