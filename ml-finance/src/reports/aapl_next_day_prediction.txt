@@ -1,6 +1,7 @@
 Best Model: XGB
 Predicted Return: 1.919910
-Confidence: 0.905473
+Raw_DA: 0.851852
+Buy_Hold_DA: 0.530449
 Recommendation: BUY
 Last Close: 271.49
 Last Date: 2025-11-21
