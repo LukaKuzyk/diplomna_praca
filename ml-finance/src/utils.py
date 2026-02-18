@@ -128,11 +128,25 @@ def calculate_mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """Setup logging configuration"""
-    logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler()
-        ]
-    )
+    """Setup colored logging (rich → colorlog → plain fallback)"""
+    log_level = getattr(logging, level.upper())
+    try:
+        from rich.logging import RichHandler
+        logging.basicConfig(
+            level=log_level, format='%(message)s', datefmt='[%X]',
+            handlers=[RichHandler(rich_tracebacks=True, markup=True, show_path=False)]
+        )
+    except ImportError:
+        try:
+            import colorlog
+            handler = colorlog.StreamHandler()
+            handler.setFormatter(colorlog.ColoredFormatter(
+                '%(log_color)s%(asctime)s - %(levelname)s - %(message)s',
+                log_colors={'DEBUG': 'cyan', 'INFO': 'green', 'WARNING': 'yellow',
+                            'ERROR': 'red', 'CRITICAL': 'bold_red'}
+            ))
+            logging.basicConfig(level=log_level, handlers=[handler])
+        except ImportError:
+            logging.basicConfig(level=log_level,
+                                format='%(asctime)s - %(levelname)s - %(message)s',
+                                handlers=[logging.StreamHandler()])

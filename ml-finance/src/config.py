@@ -4,6 +4,8 @@ Centralized configuration for the ML Finance pipeline.
 
 DEFAULT_SEED = 42
 
+DEFAULT_YEARS = 5
+
 SIGNAL_THRESHOLD = 0.002
 
 FEATURE_COLS = [

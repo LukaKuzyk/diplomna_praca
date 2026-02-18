@@ -5,8 +5,6 @@ import logging
 from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-from arch import arch_model
 
 from config import DEFAULT_SEED
 
@@ -41,7 +39,11 @@ from sklearn.preprocessing import StandardScaler
 
 
 class BaselineModels:
-    """Baseline models for time series forecasting"""
+    """Baseline models for time series forecasting
+
+    NOTE: requires 'statsmodels' and 'arch' packages.
+    Not used in the main ML pipeline — kept for reference.
+    """
 
     def __init__(self, random_state: int = DEFAULT_SEED):
         self.random_state = random_state
@@ -55,8 +57,10 @@ class BaselineModels:
         else:
             raise ValueError(f"Unknown target: {target}")
 
-    def fit_arima(self, train: pd.Series, target: str) -> ARIMA:
+    def fit_arima(self, train: pd.Series, target: str):
         """Fit ARIMA model"""
+        from statsmodels.tsa.arima.model import ARIMA
+
         if target == 'log_ret':
             order = (1, 0, 1)
         elif target == 'close':
@@ -76,7 +80,7 @@ class BaselineModels:
                 model = ARIMA(train, order=(0, 1, 0))
             return model.fit()
 
-    def forecast_arima(self, model_fit: ARIMA, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def forecast_arima(self, model_fit, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get ARIMA forecast with confidence intervals"""
         try:
             forecast = model_fit.get_forecast(steps=steps)
@@ -88,8 +92,10 @@ class BaselineModels:
             logging.warning(f"ARIMA forecasting failed: {e}")
             return np.zeros(steps), np.zeros(steps), np.zeros(steps)
 
-    def fit_garch(self, returns: pd.Series) -> arch_model:
+    def fit_garch(self, returns: pd.Series):
         """Fit GARCH(1,1) model"""
+        from arch import arch_model
+
         try:
             model = arch_model(returns, mean='AR', vol='GARCH', p=1, q=1, dist='StudentsT')
             return model.fit(disp='off')
@@ -102,7 +108,7 @@ class BaselineModels:
                 logging.error(f"GARCH fallback also failed: {e2}")
                 raise
 
-    def forecast_garch(self, model_fit: arch_model, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def forecast_garch(self, model_fit, steps: int = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get GARCH mean and volatility forecast"""
         try:
             forecast = model_fit.forecast(horizon=steps)

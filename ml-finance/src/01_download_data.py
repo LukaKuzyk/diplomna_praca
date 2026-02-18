@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
 from utils import set_seed, date_utc_index, setup_logging
+from config import DEFAULT_YEARS
 import numpy as np
 
 
@@ -96,16 +97,17 @@ def main():
     setup_logging()
 
     # Parse arguments
-    parser = argparse.ArgumentParser(description='Download AAPL data and create features')
-    parser.add_argument('--ticker', type=str, default='MSFT', help='Stock ticker (default: AAPL)')
-    parser.add_argument('--years', type=int, default=10, help='Number of years of data (default: 5)')
+    parser = argparse.ArgumentParser(description='Download stock data and create features')
+    parser.add_argument('--ticker', type=str, default='AAPL', help='Stock ticker (default: AAPL)')
+    parser.add_argument('--years', type=int, default=DEFAULT_YEARS, help=f'Number of years of data (default: {DEFAULT_YEARS})')
     args = parser.parse_args()
 
     logging.info(f"Starting data download for {args.ticker} ({args.years} years)")
 
     # File paths
-    raw_data_path = f'data/{args.ticker.lower()}.csv'
-    features_path = f'data/{args.ticker.lower()}_features.csv'
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+    raw_data_path = os.path.join(data_dir, f'{args.ticker.lower()}.csv')
+    features_path = os.path.join(data_dir, f'{args.ticker.lower()}_features.csv')
 
     # Check if raw data is fresh and has SNP500 data
     force_redownload = False

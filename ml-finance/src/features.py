@@ -49,29 +49,46 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
             # Fallback to regular conversion
             features_df.index = pd.to_datetime(features_df.index)
 
-    # Load search data
-    search_path = os.path.join(os.path.dirname(__file__), 'data', 'search_data_01.csv')
-    search_df = pd.read_csv(search_path, skiprows=2, header=0)
-    search_df.columns = ['month', 'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search']
+    # Load search data (prefer auto-generated, fallback to manual)
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    search_path = os.path.join(data_dir, 'search_data.csv')
+    if not os.path.exists(search_path):
+        search_path = os.path.join(data_dir, 'search_data_01.csv')
+        logging.info("Using manually downloaded search data (search_data_01.csv)")
+
+    if os.path.exists(search_path) and search_path.endswith('_01.csv'):
+        # Manual CSV has 2 metadata rows before the header
+        search_df = pd.read_csv(search_path, skiprows=2, header=0)
+        search_df.columns = ['month', 'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search']
+    else:
+        search_df = pd.read_csv(search_path, index_col=0, parse_dates=True)
+        search_df.index.name = 'month'
+        search_df = search_df.reset_index()
+
     search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
     search_df = search_df.set_index('month')
-    # Reindex to daily and forward fill
     search_daily = search_df.reindex(features_df.index, method='ffill')
-    # Join to features_df
     features_df = features_df.join(search_daily)
 
-    # Load news data
-    news_path = os.path.join(os.path.dirname(__file__), 'data', 'news_data_01.csv')
-    news_df = pd.read_csv(news_path, skiprows=2, header=0)
-    news_df.columns = ['month', 'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
+    # Load news data (prefer auto-generated, fallback to manual)
+    news_path = os.path.join(data_dir, 'news_data.csv')
+    if not os.path.exists(news_path):
+        news_path = os.path.join(data_dir, 'news_data_01.csv')
+        logging.info("Using manually downloaded news data (news_data_01.csv)")
+
+    if os.path.exists(news_path) and news_path.endswith('_01.csv'):
+        news_df = pd.read_csv(news_path, skiprows=2, header=0)
+        news_df.columns = ['month', 'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
+        for col in ['war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']:
+            news_df[col] = news_df[col].replace('<1', 0.5).astype(float)
+    else:
+        news_df = pd.read_csv(news_path, index_col=0, parse_dates=True)
+        news_df.index.name = 'month'
+        news_df = news_df.reset_index()
+
     news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
-    # Handle '<1' values
-    for col in ['war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']:
-        news_df[col] = news_df[col].replace('<1', 0.5).astype(float)
     news_df = news_df.set_index('month')
-    # Reindex to daily and forward fill
     news_daily = news_df.reindex(features_df.index, method='ffill')
-    # Join to features_df
     features_df = features_df.join(news_daily)
 
     # Lag features for search and news

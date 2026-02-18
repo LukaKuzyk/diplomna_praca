@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Baseline models for AAPL price/return forecasting: Naive, ARIMA, GARCH
+
+NOTE: This script is NOT part of the main ML pipeline (run_all.py).
+The thesis focuses on ML models. Kept here for reference/comparison only.
 """
 import argparse
 import logging

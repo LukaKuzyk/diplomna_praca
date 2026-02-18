@@ -61,13 +61,13 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret'}
 
         for model_name, (model, scaler) in models.items():
-            # Fit model
+            logging.info(f"  Training {model_name.upper()}...")
             X_scaled = scaler.fit_transform(train_features)
             model.fit(X_scaled, train_split)
 
-            # Predict
             X_test_scaled = scaler.transform(test_features)
             y_pred = model.predict(X_test_scaled)
+            logging.info(f"  {model_name.upper()} done (mean pred: {y_pred.mean():.6f})")
 
             predictions[f'y_pred_{model_name}'] = y_pred
 

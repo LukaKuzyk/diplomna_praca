@@ -19,7 +19,7 @@ from utils import (
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features
-from models import get_ml_models, MLModelPredictor, BaselineModels
+from models import get_ml_models, MLModelPredictor
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -90,8 +90,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     if len(train_features) < 50:
         raise ValueError("Not enough data for training")
 
-    # Initialize models
-    baseline_models = BaselineModels()
+    # Initialize ML models
     ml_predictor = MLModelPredictor()
 
     # Fit models
