@@ -178,6 +178,60 @@ def get_ml_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
     return models
 
 
+def get_tuned_ml_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
+    """Get ML models with GridSearchCV tuning for RF and XGB"""
+    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+
+    models = {}
+    tscv = TimeSeriesSplit(n_splits=3)
+
+    # Linear Regression (baseline, no tuning needed)
+    models['linear'] = (LinearRegression(), StandardScaler())
+
+    # Random Forest with GridSearchCV
+    rf_params = {
+        'n_estimators': [100, 200],
+        'max_depth': [10, 15, 20],
+        'min_samples_split': [2, 5],
+    }
+    rf_base = RandomForestRegressor(min_samples_leaf=2, random_state=random_state)
+    models['rf'] = (
+        GridSearchCV(rf_base, rf_params, cv=tscv, scoring='neg_mean_squared_error', n_jobs=-1, refit=True),
+        StandardScaler()
+    )
+
+    # XGBoost with GridSearchCV
+    if XGBOOST_AVAILABLE:
+        xgb_params = {
+            'n_estimators': [100, 200],
+            'max_depth': [3, 5, 7],
+            'learning_rate': [0.01, 0.05, 0.1],
+        }
+        xgb_base = XGBRegressor(subsample=0.8, colsample_bytree=0.8, random_state=random_state)
+        models['xgb'] = (
+            GridSearchCV(xgb_base, xgb_params, cv=tscv, scoring='neg_mean_squared_error', n_jobs=-1, refit=True),
+            StandardScaler()
+        )
+
+    # Other models keep fixed hyperparameters
+    models['gbr'] = (GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    if LGBM_AVAILABLE:
+        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+
+    if CATBOOST_AVAILABLE:
+        models['cat'] = (CatBoostRegressor(iterations=100, depth=5, learning_rate=0.05, random_state=random_state, verbose=False), StandardScaler())
+
+    models['elasticnet'] = (ElasticNet(alpha=0.01, l1_ratio=0.5, random_state=random_state), StandardScaler())
+    models['extratrees'] = (ExtraTreesRegressor(n_estimators=100, max_depth=10, min_samples_split=5, random_state=random_state), StandardScaler())
+    models['sgd'] = (SGDRegressor(max_iter=1000, tol=1e-3, alpha=0.01, random_state=random_state), StandardScaler())
+
+    if NGBOOST_AVAILABLE:
+        models['ngb'] = (NGBRegressor(n_estimators=100, learning_rate=0.1, random_state=random_state), StandardScaler())
+
+    return models
+
+
 class MLModelPredictor:
     """ML model predictor with multiple models"""
 

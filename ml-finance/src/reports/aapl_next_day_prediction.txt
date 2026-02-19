@@ -1,8 +1,8 @@
-Best Model: RF
-Predicted Return: 1.948441
-Raw_DA: 0.884774
-Buy_Hold_DA: 0.530449
-Recommendation: BUY
-Last Close: 271.49
-Last Date: 2025-11-21
+Best Model: GBR
+Predicted Return: -1.358999
+Raw_DA: 0.839506
+Buy_Hold_DA: 0.532051
+Recommendation: HOLD/CASH
+Last Close: 260.55
+Last Date: 2026-02-19
 Signal Threshold: 0.002

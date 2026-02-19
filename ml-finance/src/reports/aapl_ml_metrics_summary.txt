@@ -2,61 +2,61 @@ ML Models Performance Summary
 ========================================
 
 Baseline:
-  Buy_and_Hold_DA: 0.530449
+  Buy_and_Hold_DA: 0.532051
 
 ML_LINEAR_Returns:
-  RMSE: 0.011952
-  MAE: 0.008882
-  Raw_DA: 0.757202
-  Confident_DA: 0.796209
-  Coverage: 0.868313
+  RMSE: 0.012561
+  MAE: 0.008304
+  Raw_DA: 0.810700
+  Confident_DA: 0.830357
+  Coverage: 0.921811
   Total_Test_Days: 243.000000
 
 ML_RF_Returns:
-  RMSE: 0.012302
-  MAE: 0.007118
-  Raw_DA: 0.884774
-  Confident_DA: 0.923445
-  Coverage: 0.860082
+  RMSE: 0.012238
+  MAE: 0.007799
+  Raw_DA: 0.810700
+  Confident_DA: 0.871287
+  Coverage: 0.831276
   Total_Test_Days: 243.000000
 
 ML_XGB_Returns:
-  RMSE: 0.012010
-  MAE: 0.007328
-  Raw_DA: 0.864198
-  Confident_DA: 0.902439
-  Coverage: 0.843621
+  RMSE: 0.011750
+  MAE: 0.007299
+  Raw_DA: 0.823045
+  Confident_DA: 0.886700
+  Coverage: 0.835391
   Total_Test_Days: 243.000000
 
 ML_GBR_Returns:
-  RMSE: 0.011499
-  MAE: 0.006972
-  Raw_DA: 0.864198
-  Confident_DA: 0.900474
-  Coverage: 0.868313
+  RMSE: 0.010904
+  MAE: 0.006999
+  Raw_DA: 0.839506
+  Confident_DA: 0.890547
+  Coverage: 0.827160
   Total_Test_Days: 243.000000
 
 ML_ELASTICNET_Returns:
-  RMSE: 0.019568
-  MAE: 0.012392
-  Raw_DA: 0.662551
-  Confident_DA: 0.736842
-  Coverage: 0.547325
+  RMSE: 0.015194
+  MAE: 0.010245
+  Raw_DA: 0.707819
+  Confident_DA: 0.768362
+  Coverage: 0.728395
   Total_Test_Days: 243.000000
 
 ML_EXTRATREES_Returns:
-  RMSE: 0.012681
-  MAE: 0.007606
-  Raw_DA: 0.827160
-  Confident_DA: 0.888372
-  Coverage: 0.884774
+  RMSE: 0.012646
+  MAE: 0.008174
+  Raw_DA: 0.794239
+  Confident_DA: 0.884817
+  Coverage: 0.786008
   Total_Test_Days: 243.000000
 
 ML_SGD_Returns:
-  RMSE: 0.014931
-  MAE: 0.009576
-  Raw_DA: 0.769547
-  Confident_DA: 0.820388
-  Coverage: 0.847737
+  RMSE: 0.012848
+  MAE: 0.008845
+  Raw_DA: 0.777778
+  Confident_DA: 0.843434
+  Coverage: 0.814815
   Total_Test_Days: 243.000000
 

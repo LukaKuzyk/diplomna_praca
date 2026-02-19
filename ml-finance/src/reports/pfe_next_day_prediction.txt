@@ -1,0 +1,8 @@
+Best Model: RF
+Predicted Return: -1.583714
+Raw_DA: 0.898305
+Buy_Hold_DA: 0.489086
+Recommendation: HOLD/CASH
+Last Close: 26.86
+Last Date: 2026-02-19
+Signal Threshold: 0.002

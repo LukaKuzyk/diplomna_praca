@@ -483,10 +483,12 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
                                                     'atr_14', 'cci_20', 'momentum_5', 'momentum_10'],
         'Return Lags\n(log_ret_lag_*)': [c for c in importance_df.index if c.startswith('log_ret_lag')],
         'Volume\n(volume, volume_lag, MA)': [c for c in importance_df.index if 'volume' in c],
+        'Market\n(VIX, QQQ)': [c for c in importance_df.index if 'vix' in c or 'qqq' in c],
         'Search Trends\n(Google Trends)': [c for c in importance_df.index if 'search' in c],
-        'News Trends\n(Google News)': [c for c in importance_df.index if 'news' in c],
+        'News Trends\n(Google News)': [c for c in importance_df.index if 'news' in c and 'earnings' not in c],
         'Statistical\n(skew, kurt, vol)': ['rolling_skew_20', 'rolling_kurt_20', 'volatility'],
         'Calendar\n(day, month)': ['day_of_week', 'month'],
+        'Earnings\n(earnings_week)': ['earnings_week'],
     }
 
     cat_importance = {}

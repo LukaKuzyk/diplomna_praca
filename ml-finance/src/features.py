@@ -102,6 +102,12 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     for lag in [1, 2, 3, 5, 7, 10, 14, 15, 20, 21, 30]:
         features_df[f'log_ret_lag_{lag}'] = features_df['log_ret'].shift(lag)
 
+    # Market lag features (VIX, QQQ, SNP500)
+    for col in ['vix_change', 'qqq_change', 'snp500_change']:
+        if col in features_df.columns:
+            for lag in [1, 2, 3]:
+                features_df[f'{col}_lag_{lag}'] = features_df[col].shift(lag)
+
     # Volume features
     features_df['volume'] = df['Volume']
     for lag in [1, 2, 5]:

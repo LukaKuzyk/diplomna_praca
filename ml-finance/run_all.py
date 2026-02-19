@@ -61,6 +61,8 @@ def main():
                        help='Skip backtesting and plotting')
     parser.add_argument('--skip-prediction', action='store_true',
                        help='Skip next day prediction')
+    parser.add_argument('--tune', action='store_true',
+                       help='Enable GridSearchCV hyperparameter tuning for RF and XGB')
 
     args = parser.parse_args()
 
@@ -92,7 +94,8 @@ def main():
 
     # Step 2: ML Model Training
     if not args.skip_training:
-        cmd = f"python {os.path.join(BASE_DIR, 'src', '03_model_ml.py')} --ticker {ticker}"
+        tune_flag = ' --tune' if args.tune else ''
+        cmd = f"python {os.path.join(BASE_DIR, 'src', '03_model_ml.py')} --ticker {ticker}{tune_flag}"
         if run_command(cmd, f"ML Model Training for {ticker}"):
             success_count += 1
         else:

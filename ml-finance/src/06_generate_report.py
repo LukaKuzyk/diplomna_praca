@@ -640,7 +640,17 @@ def create_html_report(data: dict, output_path: str) -> None:
                     <tr>
                         <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Calendar</strong></td>
                         <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>day_of_week</code>, <code>month</code></td>
-                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Deň v týždni a mesiac. Zachytávajú sezónne vzory (napr. „pondelkový efekt", január efekt).</td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Deň v týždni a mesiac. Zachytávajú sezónne vzory (napr. „pondelkový efekt\", január efekt).</td>
+                    </tr>
+                    <tr style="background: #fafafa;">
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Market</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>vix_close</code>, <code>vix_change</code>, <code>qqq_change</code>, <code>snp500_change</code> + lag 1–3</td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">VIX (index strachu) — meria očakávanú volatilitu trhu. QQQ — výkonnosť technologického sektora (Nasdaq-100 ETF). S&amp;P 500 — zmena širokého trhového indexu. Lagy zachytávajú oneskorenú reakciu.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Earnings</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>earnings_week</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Binárny príznak — 1, ak sa v najbližších 7 dňoch očakáva zverejnenie kvartálnych výsledkov spoločnosti.</td>
                     </tr>
                     <tr style="background: #fafafa;">
                         <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Search Trends</strong></td>

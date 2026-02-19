@@ -1,0 +1,62 @@
+ML Models Performance Summary
+========================================
+
+Baseline:
+  Buy_and_Hold_DA: 0.534828
+
+ML_LINEAR_Returns:
+  RMSE: 0.012409
+  MAE: 0.008510
+  Raw_DA: 0.792531
+  Confident_DA: 0.830986
+  Coverage: 0.883817
+  Total_Test_Days: 242.000000
+
+ML_RF_Returns:
+  RMSE: 0.008396
+  MAE: 0.005815
+  Raw_DA: 0.867220
+  Confident_DA: 0.920792
+  Coverage: 0.838174
+  Total_Test_Days: 242.000000
+
+ML_XGB_Returns:
+  RMSE: 0.008098
+  MAE: 0.005451
+  Raw_DA: 0.871369
+  Confident_DA: 0.931373
+  Coverage: 0.846473
+  Total_Test_Days: 242.000000
+
+ML_GBR_Returns:
+  RMSE: 0.008003
+  MAE: 0.005474
+  Raw_DA: 0.871369
+  Confident_DA: 0.926471
+  Coverage: 0.846473
+  Total_Test_Days: 242.000000
+
+ML_ELASTICNET_Returns:
+  RMSE: 0.012927
+  MAE: 0.009422
+  Raw_DA: 0.721992
+  Confident_DA: 0.805755
+  Coverage: 0.576763
+  Total_Test_Days: 242.000000
+
+ML_EXTRATREES_Returns:
+  RMSE: 0.008837
+  MAE: 0.006298
+  Raw_DA: 0.850622
+  Confident_DA: 0.916667
+  Coverage: 0.796680
+  Total_Test_Days: 242.000000
+
+ML_SGD_Returns:
+  RMSE: 0.009519
+  MAE: 0.006949
+  Raw_DA: 0.780083
+  Confident_DA: 0.818605
+  Coverage: 0.892116
+  Total_Test_Days: 242.000000
+

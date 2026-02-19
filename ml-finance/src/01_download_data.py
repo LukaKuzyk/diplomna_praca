@@ -48,8 +48,24 @@ def download_stock_data(ticker: str, years: int) -> pd.DataFrame:
     return df
 
 
-def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create target features: close, log_ret, rv_5, snp500_change"""
+def download_earnings_dates(ticker: str) -> pd.DataFrame:
+    """Download historical earnings dates for the ticker"""
+    try:
+        stock = yf.Ticker(ticker)
+        earnings = stock.get_earnings_dates(limit=40)
+        if earnings is not None and not earnings.empty:
+            earnings_dates = earnings.index.normalize().tz_localize(None)
+            earnings_df = pd.DataFrame({'earnings_date': 1}, index=earnings_dates)
+            earnings_df = earnings_df[~earnings_df.index.duplicated(keep='first')]
+            logging.info(f"Downloaded {len(earnings_df)} earnings dates for {ticker}")
+            return earnings_df
+    except Exception as e:
+        logging.warning(f"Could not download earnings dates: {e}")
+    return pd.DataFrame()
+
+
+def create_features(df: pd.DataFrame, earnings_df: pd.DataFrame = None) -> pd.DataFrame:
+    """Create target features: close, log_ret, rv_5, vix, qqq, earnings"""
     logging.info("Creating features...")
 
     # Ensure we have the required columns
@@ -73,10 +89,33 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     # SNP500 change (if available)
     if 'snp500' in df_features.columns:
         df_features['snp500_change'] = df_features['snp500'].pct_change(fill_method=None)
-        df_features['snp500_change'] = df_features['snp500_change'].fillna(0)  # Fill first NaN with 0
+        df_features['snp500_change'] = df_features['snp500_change'].fillna(0)
+
+    # VIX (if available)
+    if 'vix_close' in df_features.columns:
+        df_features['vix_change'] = df_features['vix_close'].pct_change(fill_method=None).fillna(0)
     else:
-        logging.warning("snp500 column not found, setting snp500_change to 0")
-        df_features['snp500_change'] = 0.0
+        logging.warning("vix_close column not found, setting to 0")
+        df_features['vix_close'] = 0.0
+        df_features['vix_change'] = 0.0
+
+    # QQQ change (if available)
+    if 'qqq_close' in df_features.columns:
+        df_features['qqq_change'] = df_features['qqq_close'].pct_change(fill_method=None).fillna(0)
+    else:
+        logging.warning("qqq_close column not found, setting to 0")
+        df_features['qqq_change'] = 0.0
+
+    # Earnings week binary feature
+    df_features['earnings_week'] = 0
+    if earnings_df is not None and not earnings_df.empty:
+        for idx in df_features.index:
+            idx_naive = idx.tz_localize(None) if idx.tzinfo else idx
+            days_to_earnings = (earnings_df.index - idx_naive).days
+            future_days = days_to_earnings[(days_to_earnings >= 0) & (days_to_earnings <= 7)]
+            if len(future_days) > 0:
+                df_features.loc[idx, 'earnings_week'] = 1
+        logging.info(f"Marked {df_features['earnings_week'].sum():.0f} days as earnings_week=1")
 
     # Remove NA values (after feature calculation), drop only if essential features are NaN
     initial_rows = len(df_features)
@@ -109,14 +148,14 @@ def main():
     raw_data_path = os.path.join(data_dir, f'{args.ticker.lower()}.csv')
     features_path = os.path.join(data_dir, f'{args.ticker.lower()}_features.csv')
 
-    # Check if raw data is fresh and has SNP500 data
+    # Check if raw data is fresh and has all required columns
     force_redownload = False
     if os.path.exists(raw_data_path):
-        # Check if file has old US10Y data or missing SNP500
         temp_df = pd.read_csv(raw_data_path, nrows=1)
-        if 'us10y' in temp_df.columns or 'snp500' not in temp_df.columns:
+        required_market_cols = ['snp500', 'vix_close', 'qqq_close']
+        if any(col not in temp_df.columns for col in required_market_cols):
             force_redownload = True
-            logging.info("Old data format detected, forcing re-download...")
+            logging.info("Missing market data columns (VIX/QQQ), forcing re-download...")
 
     if is_file_fresh(raw_data_path, use_static_data=True) and not force_redownload:
         logging.info(f"Using static data file {raw_data_path}...")
@@ -124,18 +163,26 @@ def main():
         df.index = pd.to_datetime(df.index, utc=True)
     else:
         logging.info(f"Downloading fresh data for {args.ticker}...")
-        # Download AAPL data
-        df_aapl = download_stock_data(args.ticker, args.years)
+        # Download stock data
+        df_stock = download_stock_data(args.ticker, args.years)
 
         # Download SNP500 data (^GSPC is S&P 500 index)
         df_snp500 = download_stock_data('^GSPC', args.years)
         df_snp500 = df_snp500.rename(columns={'Close': 'snp500'})
 
-        # Merge on date index, keep all stock dates
-        df = pd.merge(df_aapl, df_snp500[['snp500']], left_index=True, right_index=True, how='left')
+        # Download VIX (^VIX — fear index)
+        df_vix = download_stock_data('^VIX', args.years)
+        df_vix = df_vix.rename(columns={'Close': 'vix_close'})
 
-        # Forward fill SNP500 values for non-trading days
-        df['snp500'] = df['snp500'].fillna(method='ffill').fillna(method='bfill')
+        # Download QQQ (Nasdaq-100 ETF — tech sector proxy)
+        df_qqq = download_stock_data('QQQ', args.years)
+        df_qqq = df_qqq.rename(columns={'Close': 'qqq_close'})
+
+        # Merge on date index, keep all stock dates
+        df = df_stock.copy()
+        for market_df, col in [(df_snp500, 'snp500'), (df_vix, 'vix_close'), (df_qqq, 'qqq_close')]:
+            df = pd.merge(df, market_df[[col]], left_index=True, right_index=True, how='left')
+            df[col] = df[col].ffill().bfill()
 
         # Save raw data
         os.makedirs(os.path.dirname(raw_data_path), exist_ok=True)
@@ -145,8 +192,15 @@ def main():
     # Convert to UTC datetime index
     df = date_utc_index(df, col='Date')
 
+    # Download earnings dates
+    earnings_df = download_earnings_dates(args.ticker)
+    if not earnings_df.empty:
+        earnings_path = os.path.join(data_dir, f'{args.ticker.lower()}_earnings.csv')
+        earnings_df.to_csv(earnings_path)
+        logging.info(f"Earnings dates saved to {earnings_path}")
+
     # Create features
-    df_features = create_features(df)
+    df_features = create_features(df, earnings_df)
 
     # Save features
     os.makedirs(os.path.dirname(features_path), exist_ok=True)

@@ -14,7 +14,7 @@ from utils import (
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features
-from models import get_ml_models
+from models import get_ml_models, get_tuned_ml_models
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -22,7 +22,7 @@ warnings.filterwarnings('ignore')
 from sklearn.preprocessing import StandardScaler
 
 
-def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: str = 'AAPL') -> pd.DataFrame:
+def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: str = 'AAPL', tune: bool = False) -> pd.DataFrame:
     """Run walk-forward validation for ML model"""
     logging.info("Starting ML walk-forward validation")
 
@@ -58,13 +58,17 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             continue
 
         # Fit and predict with multiple models
-        models = get_ml_models()
+        models = get_tuned_ml_models() if tune else get_ml_models()
         predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret'}
 
         for model_name, (model, scaler) in models.items():
             logging.info(f"  Training {model_name.upper()}...")
             X_scaled = scaler.fit_transform(train_features)
             model.fit(X_scaled, train_split)
+
+            # Log best params for GridSearchCV-wrapped models
+            if hasattr(model, 'best_params_'):
+                logging.info(f"  {model_name.upper()} best params: {model.best_params_}")
 
             X_test_scaled = scaler.transform(test_features)
             y_pred = model.predict(X_test_scaled)
@@ -86,8 +90,10 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     # Save feature importances from tree-based models (last window)
     importance_data = {}
     for model_name, (model, scaler) in last_trained_models.items():
-        if hasattr(model, 'feature_importances_'):
-            importance_data[model_name.upper()] = model.feature_importances_
+        # Handle GridSearchCV-wrapped models
+        estimator = model.best_estimator_ if hasattr(model, 'best_estimator_') else model
+        if hasattr(estimator, 'feature_importances_'):
+            importance_data[model_name.upper()] = estimator.feature_importances_
 
     if importance_data:
         importance_df = pd.DataFrame(importance_data, index=FEATURE_COLS)
@@ -143,15 +149,20 @@ def main():
     parser.add_argument('--step', type=int, default=63,
                        help='Step size for walk-forward (default: 30 ~1 month)')
 
+    parser.add_argument('--tune', action='store_true',
+                       help='Enable GridSearchCV hyperparameter tuning for RF and XGB')
+
     args = parser.parse_args()
 
     logging.info("Running ML models for log-return forecasting")
+    if args.tune:
+        logging.info("Hyperparameter tuning ENABLED (GridSearchCV)")
     models = get_ml_models()
     logging.info(f"Comparing models: {list(models.keys())}")
 
     # Run walk-forward validation
 
-    results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step, args.ticker)
+    results_df = run_ml_walk_forward(args.train_window, args.test_window, args.step, args.ticker, tune=args.tune)
 
     # Save results
     output_path = os.path.join(os.path.dirname(__file__), 'models', f'{args.ticker.lower()}_ml_predictions.csv')
