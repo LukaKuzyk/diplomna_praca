@@ -403,76 +403,107 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
 
 
 def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> None:
-    """Create feature analysis plot (correlation and importance)"""
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    fig.suptitle(f'{ticker.upper()} Feature Analysis', fontsize=16, fontweight='bold')
+    """Create feature importance plot using model-based importances"""
+    importance_path = os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_feature_importance.csv')
 
-    # Get feature columns (exclude predictions and target)
-    exclude_cols = ['log_ret', 'close'] + [col for col in combined_df.columns if col.startswith('ml_')]
-    feature_cols = [col for col in combined_df.columns if col not in exclude_cols and not col.startswith('ml_')]
+    if not os.path.exists(importance_path):
+        logging.warning(f"Feature importance file not found: {importance_path}, skipping plot")
+        return
 
-    if len(feature_cols) > 10:
-        feature_cols = feature_cols[:10]  # Limit to top 10 features
+    importance_df = pd.read_csv(importance_path, index_col=0)
 
-    # 1. Feature Correlation with Target
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14))
+    fig.suptitle(f'{ticker.upper()} Feature Importance Analysis', fontsize=16, fontweight='bold')
+
+    # 1. Top-20 Average Importance (across all tree models)
     ax1 = axes[0, 0]
-    correlations = []
-    for col in feature_cols:
-        corr = combined_df[col].corr(combined_df['log_ret'])
-        if not np.isnan(corr):
-            correlations.append((col, corr))
+    avg_importance = importance_df.mean(axis=1).sort_values(ascending=True)
+    top20 = avg_importance.tail(20)
+    colors_bar = plt.cm.viridis(np.linspace(0.3, 0.9, len(top20)))
+    ax1.barh(range(len(top20)), top20.values, color=colors_bar)
+    ax1.set_yticks(range(len(top20)))
+    ax1.set_yticklabels(top20.index, fontsize=8)
+    ax1.set_xlabel('Average Importance')
+    ax1.set_title('Top 20 Features (avg across tree models)')
+    ax1.grid(True, alpha=0.3, axis='x')
 
-    correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-    features = [x[0] for x in correlations[:10]]
-    corrs = [x[1] for x in correlations[:10]]
-
-    bars = ax1.barh(features, corrs, color=['red' if x < 0 else 'green' for x in corrs], alpha=0.7)
-    ax1.set_xlabel('Correlation with Returns')
-    ax1.set_title('Feature Correlation with Target')
-    ax1.grid(True, alpha=0.3)
-
-    # 2. Feature Volatility
+    # 2. Per-model Top-10 comparison
     ax2 = axes[0, 1]
-    volatilities = []
-    for col in feature_cols:
-        if combined_df[col].std() > 0:
-            volatilities.append((col, combined_df[col].std()))
+    top10_features = avg_importance.tail(10).index.tolist()
+    top10_data = importance_df.loc[top10_features]
 
-    volatilities.sort(key=lambda x: x[1], reverse=True)
-    features_vol = [x[0] for x in volatilities[:10]]
-    vols = [x[1] for x in volatilities[:10]]
+    x = np.arange(len(top10_features))
+    n_models = len(top10_data.columns)
+    bar_width = 0.8 / n_models
+    model_colors = plt.cm.Set2(np.linspace(0, 1, n_models))
 
-    ax2.barh(features_vol, vols, color='skyblue', alpha=0.7)
-    ax2.set_xlabel('Standard Deviation')
-    ax2.set_title('Feature Volatility')
-    ax2.grid(True, alpha=0.3)
+    for i, model_name in enumerate(top10_data.columns):
+        offset = (i - n_models / 2 + 0.5) * bar_width
+        ax2.barh(x + offset, top10_data[model_name].values, height=bar_width,
+                label=model_name, color=model_colors[i], alpha=0.85)
 
-    # 3. Feature Distribution Comparison
+    ax2.set_yticks(x)
+    ax2.set_yticklabels(top10_features, fontsize=8)
+    ax2.set_xlabel('Importance')
+    ax2.set_title('Top 10 Features — per model')
+    ax2.legend(fontsize=7, loc='lower right')
+    ax2.grid(True, alpha=0.3, axis='x')
+
+    # 3. Feature Correlation with Target (Top 20 by absolute correlation)
     ax3 = axes[1, 0]
-    # Show distribution of top 3 correlated features
-    top_features = [x[0] for x in correlations[:3]]
-    for i, feature in enumerate(top_features):
-        data = combined_df[feature].dropna()
-        if len(data) > 0:
-            ax3.hist(data, bins=30, alpha=0.7, label=feature, density=True)
+    features_path = os.path.join(os.path.dirname(__file__), 'data', f'{ticker.lower()}_features.csv')
+    correlations = {}
+    if os.path.exists(features_path):
+        from features import create_features
+        raw_data = pd.read_csv(features_path)
+        feature_data = create_features(raw_data)
+        for col in importance_df.index:
+            if col in feature_data.columns and 'log_ret' in feature_data.columns:
+                corr = feature_data[col].corr(feature_data['log_ret'])
+                if not np.isnan(corr):
+                    correlations[col] = corr
 
-    ax3.set_xlabel('Feature Value')
-    ax3.set_ylabel('Density')
-    ax3.set_title('Top Feature Distributions')
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
+    if correlations:
+        corr_series = pd.Series(correlations)
+        top_corr = corr_series.reindex(corr_series.abs().sort_values(ascending=True).tail(20).index)
+        bar_colors = ['#e74c3c' if v < 0 else '#2ecc71' for v in top_corr.values]
+        ax3.barh(range(len(top_corr)), top_corr.values, color=bar_colors, alpha=0.8)
+        ax3.set_yticks(range(len(top_corr)))
+        ax3.set_yticklabels(top_corr.index, fontsize=8)
+        ax3.set_xlabel('Pearson Correlation with log_ret')
+        ax3.set_title('Top 20 Features — Correlation with Target')
+        ax3.axvline(x=0, color='black', linewidth=0.8)
+        ax3.grid(True, alpha=0.3, axis='x')
 
-    # 4. Autocorrelation Analysis
+    # 4. Feature Category Breakdown (aggregate importance by category)
     ax4 = axes[1, 1]
-    lags = range(1, 11)
-    autocorr = [combined_df['log_ret'].autocorr(lag=lag) for lag in lags]
+    categories = {
+        'Technical\n(SMA, RSI, MACD, BB, etc.)': ['sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
+                                                    'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d',
+                                                    'atr_14', 'cci_20', 'momentum_5', 'momentum_10'],
+        'Return Lags\n(log_ret_lag_*)': [c for c in importance_df.index if c.startswith('log_ret_lag')],
+        'Volume\n(volume, volume_lag, MA)': [c for c in importance_df.index if 'volume' in c],
+        'Search Trends\n(Google Trends)': [c for c in importance_df.index if 'search' in c],
+        'News Trends\n(Google News)': [c for c in importance_df.index if 'news' in c],
+        'Statistical\n(skew, kurt, vol)': ['rolling_skew_20', 'rolling_kurt_20', 'volatility'],
+        'Calendar\n(day, month)': ['day_of_week', 'month'],
+    }
 
-    ax4.bar(lags, autocorr, color='lightcoral', alpha=0.7)
-    ax4.axhline(y=0, color='black', linestyle='-', alpha=0.7)
-    ax4.set_xlabel('Lag (Days)')
-    ax4.set_ylabel('Autocorrelation')
-    ax4.set_title('Returns Autocorrelation')
-    ax4.grid(True, alpha=0.3)
+    cat_importance = {}
+    for cat_name, cols in categories.items():
+        valid_cols = [c for c in cols if c in importance_df.index]
+        if valid_cols:
+            cat_importance[cat_name] = importance_df.loc[valid_cols].mean(axis=1).sum()
+
+    if cat_importance:
+        cat_series = pd.Series(cat_importance).sort_values(ascending=True)
+        pie_colors = plt.cm.Pastel1(np.linspace(0, 1, len(cat_series)))
+        ax4.barh(range(len(cat_series)), cat_series.values, color=pie_colors)
+        ax4.set_yticks(range(len(cat_series)))
+        ax4.set_yticklabels(cat_series.index, fontsize=8)
+        ax4.set_xlabel('Total Importance (sum)')
+        ax4.set_title('Importance by Feature Category')
+        ax4.grid(True, alpha=0.3, axis='x')
 
     plt.tight_layout()
     plt.savefig(f'{output_dir}/feature_analysis.png', dpi=300, bbox_inches='tight')

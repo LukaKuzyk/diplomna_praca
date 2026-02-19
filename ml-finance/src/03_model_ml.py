@@ -75,12 +75,26 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         # Store predictions
         window_results = pd.DataFrame(predictions)
         all_predictions.append(window_results)
+        last_trained_models = models
 
     # Combine all predictions
     if not all_predictions:
         raise ValueError("No valid predictions generated")
 
     results_df = pd.concat(all_predictions, ignore_index=True)
+
+    # Save feature importances from tree-based models (last window)
+    importance_data = {}
+    for model_name, (model, scaler) in last_trained_models.items():
+        if hasattr(model, 'feature_importances_'):
+            importance_data[model_name.upper()] = model.feature_importances_
+
+    if importance_data:
+        importance_df = pd.DataFrame(importance_data, index=FEATURE_COLS)
+        importance_path = os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_feature_importance.csv')
+        os.makedirs(os.path.dirname(importance_path), exist_ok=True)
+        importance_df.to_csv(importance_path)
+        logging.info(f"Feature importances saved to {importance_path}")
 
     # Calculate metrics for each model
     models = get_ml_models()

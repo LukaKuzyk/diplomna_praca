@@ -111,14 +111,6 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['rolling_skew_20'] = features_df['log_ret'].rolling(20).skew()
     features_df['rolling_kurt_20'] = features_df['log_ret'].rolling(20).kurt()
 
-    # SNP500 change (assuming it's in df, or placeholder)
-    # If not available, this will be NaN
-    if 'snp500' in df.columns:
-        features_df['snp500_change'] = df['snp500'].pct_change()
-    else:
-        # Placeholder, set to 0 or some value
-        features_df['snp500_change'] = 0.0
-
     # Technical indicators
     # SMA(5) and SMA(20)
     features_df['sma_5'] = features_df['close'].rolling(5).mean()

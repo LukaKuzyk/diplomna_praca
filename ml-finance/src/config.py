@@ -14,7 +14,6 @@ FEATURE_COLS = [
     'log_ret_lag_20', 'log_ret_lag_21', 'log_ret_lag_30',
     'volume', 'volume_lag_1', 'volume_lag_2', 'volume_lag_5',
     'rolling_skew_20', 'rolling_kurt_20',
-    'snp500_change',
     'sma_5', 'sma_20', 'rsi_14', 'macd', 'macd_signal',
     'bb_upper', 'bb_lower', 'bb_middle', 'stoch_k', 'stoch_d', 'volatility',
     'atr_14', 'cci_20', 'momentum_5', 'momentum_10', 'volume_ma_5', 'volume_ma_20',

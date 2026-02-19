@@ -1,6 +1,6 @@
-Best Model: XGB
-Predicted Return: 1.919910
-Raw_DA: 0.851852
+Best Model: RF
+Predicted Return: 1.948441
+Raw_DA: 0.884774
 Buy_Hold_DA: 0.530449
 Recommendation: BUY
 Last Close: 271.49

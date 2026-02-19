@@ -608,15 +608,66 @@ def create_html_report(data: dict, output_path: str) -> None:
         'feature_analysis': 'Feature Analysis & Correlations'
     }
 
+    feature_descriptions_html = """
+            <div style="margin-bottom: 20px; font-size: 0.92em; line-height: 1.6;">
+                <h3 style="margin-bottom: 10px;">Prehľad použitých prediktorov</h3>
+                <table style="width:100%; border-collapse: collapse; font-size: 0.9em;">
+                    <tr style="background: #f0f0f0;">
+                        <th style="text-align:left; padding: 6px 10px; border-bottom: 2px solid #ddd;">Kategória</th>
+                        <th style="text-align:left; padding: 6px 10px; border-bottom: 2px solid #ddd;">Featury</th>
+                        <th style="text-align:left; padding: 6px 10px; border-bottom: 2px solid #ddd;">Popis</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Return Lags</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>log_ret_lag_1..30</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Logaritmické výnosy oneskorené o 1–30 dní. Zachytávajú autokoreláciu a momentum v cenových pohyboch.</td>
+                    </tr>
+                    <tr style="background: #fafafa;">
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Volume</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>volume</code>, <code>volume_lag_1..5</code>, <code>volume_ma_5/20</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Objem obchodovania a jeho kĺzavé priemery. Vysoký objem potvrdzuje silu trendu, nízky signalizuje neistotu.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Technical</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>sma_5/20</code>, <code>rsi_14</code>, <code>macd</code>, <code>bb_upper/lower/middle</code>, <code>stoch_k/d</code>, <code>atr_14</code>, <code>cci_20</code>, <code>momentum_5/10</code>, <code>volatility</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Technické indikátory: kĺzavé priemery (SMA), index relatívnej sily (RSI), MACD, Bollinger Bands, stochastic oscilátor, ATR (priemerný rozsah), CCI, momentum a volatilita.</td>
+                    </tr>
+                    <tr style="background: #fafafa;">
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Statistical</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>rolling_skew_20</code>, <code>rolling_kurt_20</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Šikmosť a špicatosť výnosov za 20 dní. Zachytávajú asymetriu a extrémne pohyby v distribúcii výnosov.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Calendar</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>day_of_week</code>, <code>month</code></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Deň v týždni a mesiac. Zachytávajú sezónne vzory (napr. „pondelkový efekt", január efekt).</td>
+                    </tr>
+                    <tr style="background: #fafafa;">
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><strong>Search Trends</strong></td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee; vertical-align: top;"><code>iphone_search</code>, <code>ai_search</code>, <code>election_search</code>, <code>trump_search</code>, <code>stock_search</code> + lag 1–3</td>
+                        <td style="padding: 6px 10px; border-bottom: 1px solid #eee;">Google Trends — týždenný záujem o kľúčové témy. Lagy zachytávajú oneskorený vplyv verejného záujmu na trh.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; vertical-align: top;"><strong>News Trends</strong></td>
+                        <td style="padding: 6px 10px; vertical-align: top;"><code>war_news</code>, <code>unemployment_news</code>, <code>tariffs_news</code>, <code>earnings_news</code>, <code>ai_news</code> + lag 1–3</td>
+                        <td style="padding: 6px 10px;">Google News Trends — frekvencia spravodajských článkov na kľúčové témy. Odrážajú mediálnu náladu a sentiment.</td>
+                    </tr>
+                </table>
+            </div>
+    """
+
     for chart_name, chart_path in data['plots'].items():
         if chart_name != 'next_day_predictions' and os.path.exists(chart_path):
             # Convert image to base64 for embedding
             with open(chart_path, "rb") as img_file:
                 img_data = base64.b64encode(img_file.read()).decode('utf-8')
 
+            extra_content = feature_descriptions_html if chart_name == 'feature_analysis' else ''
+
             html_content += f"""
         <div class="section">
             <h2>📊 {chart_titles.get(chart_name, chart_name.replace('_', ' ').title())}</h2>
+            {extra_content}
             <div class="chart-container">
                 <img src="data:image/png;base64,{img_data}" alt="{chart_name}">
             </div>
@@ -636,13 +687,10 @@ def create_html_report(data: dict, output_path: str) -> None:
     # Conclusions
     html_content += f"""
         <div class="section">
-            <h2>🎯 Závery & Odporúčania (Conclusions)</h2>
+            <h2>🎯 Závery</h2>
             <ul>
                 <li><strong>Výkonnosť Modelov:</strong> ML modely dosahujú raw smerovú presnosť od {min_da_html:.1%} do {max_da_html:.1%} (Buy &amp; Hold baseline: {bh_da_concl:.1%})</li>
                 <li><strong>Riadenie Rizík:</strong> Stratégia založená na prahu (0.2%) efektívne redukuje falošné signály a zlepšuje kvalitu signálov</li>
-                <li><strong>Implementácia:</strong> Zvážte implementáciu odporúčanej obchodnej stratégie s primeraným dimenzovaním pozícií a protokolmi riadenia rizík</li>
-                <li><strong>Monitorovanie:</strong> Pravidelné pretrénovanie modelov a monitorovanie výkonnosti je nevyhnutné pre udržanie presnosti predikcií</li>
-                <li><strong>Ďalšie Kroky:</strong> Zamerajte sa na najvýkonnejší model (XGBoost/RF) pre nasadenie do produkcie s kontinuálnou validáciou</li>
             </ul>
         </div>
 
