@@ -47,7 +47,18 @@ def load_model_metrics(ticker: str) -> Dict[str, any]:
         for line in lines:
             line = line.strip()
             if line.endswith('_Returns:'):
-                current_model = line.replace('_Returns:', '').replace('ML_', '')
+                current_model = line.replace('_Returns:', '')
+                if current_model.startswith('ML_REG_'):
+                    current_model = current_model.replace('ML_REG_', '')
+                else:
+                    current_model = current_model.replace('ML_', '')
+                current_dict = {}
+            elif line.endswith('_Probability:'):
+                current_model = line.replace('_Probability:', '')
+                if current_model.startswith('ML_CL_'):
+                    current_model = current_model.replace('ML_', '') # keep CL_
+                else:
+                    current_model = current_model.replace('ML_', '')
                 current_dict = {}
             elif line.startswith('Raw_DA:') and current_model:
                 current_dict['raw_da'] = float(line.split(':')[1].strip())
@@ -55,6 +66,9 @@ def load_model_metrics(ticker: str) -> Dict[str, any]:
                 current_dict['confident_da'] = float(line.split(':')[1].strip())
             elif line.startswith('Coverage:') and current_model:
                 current_dict['coverage'] = float(line.split(':')[1].strip())
+            elif line.startswith('Mean_Probability:') and current_model:
+                pass # Not explicitly needed matching here, but we could save it if needed
+            elif line.startswith('Total_Test_Days:') and current_model:
                 da_metrics[current_model.lower()] = current_dict
                 current_model = None
             elif line.startswith('Directional_Accuracy:') and current_model:
@@ -99,6 +113,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     # For training: exclude last row (no next-day return known)
     train_features = all_features.iloc[:-1]
     train_target = target.iloc[:-1].fillna(0)
+    train_target_class = (train_target > 0).astype(int)
     train_close = df_features['close']
 
     # Feature selection with Lasso
@@ -113,10 +128,12 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
         raise ValueError("Not enough data for training")
 
     # Initialize ML models
-    ml_predictor = MLModelPredictor()
+    ml_predictor = MLModelPredictor(model_type='regression')
+    cl_predictor = MLModelPredictor(model_type='classification')
 
     # Fit models
     ml_predictor.fit(train_features, train_target)
+    cl_predictor.fit(train_features, train_target_class)
 
     # Prepare features for next day prediction
     last_row = df_features.iloc[-1]
@@ -124,6 +141,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
 
     # Get predictions from all ML models
     ml_predictions = ml_predictor.predict_all(next_day_features)
+    cl_predictions = cl_predictor.predict_proba_all(next_day_features)
 
     # Load directional accuracy metrics
     da_metrics = load_model_metrics(ticker)
@@ -169,6 +187,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
         'last_date': df_features.index[-1].strftime('%Y-%m-%d'),
         'last_close': last_close,
         'predictions': predictions,
+        'cl_predictions': cl_predictions,
         'da_metrics': da_metrics,
         'bh_accuracy': bh_acc,
         'recommendation': recommendation,
@@ -264,6 +283,61 @@ def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/fi
     plt.close()
     logging.info("Saved next_day_predictions.png")
 
+def create_classification_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/figures') -> None:
+    """Create plot showing next day ML classification predictions"""
+    ensure_dirs(output_dir)
+    logging.info(f"Creating classification prediction plot in {output_dir}...")
+
+    ticker = result['ticker']
+    predictions = result['cl_predictions']
+    if not predictions:
+        return
+        
+    # Set up the plotting area - horizontal bar chart
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+    models = []
+    probs = []
+    colors = []
+    
+    for model_name, pred_val in predictions.items():
+        models.append(model_name.replace('cl_', '').upper() + " (Clf)")
+        prob = pred_val[0]
+        probs.append(prob)
+        colors.append('green' if prob > 0.55 else ('red' if prob < 0.45 else 'orange'))
+
+    y_pos = np.arange(len(models))
+    bars = ax.barh(y_pos, probs, color=colors, alpha=0.7)
+
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(models, fontsize=12)
+    ax.invert_yaxis()  # labels read top-to-bottom
+    ax.set_xlabel('Probability of UP', fontsize=12)
+    ax.set_title(f'{ticker}: Next Day Classification Probability', fontsize=16, fontweight='bold')
+    
+    # Add vertical lines for thresholds
+    ax.axvline(x=0.5, color='black', linestyle='-', alpha=0.5, label='Neutral (0.5)')
+    ax.axvline(x=0.55, color='green', linestyle='--', alpha=0.5, label='Confident UP (>0.55)')
+    ax.axvline(x=0.45, color='red', linestyle='--', alpha=0.5, label='Confident DOWN (<0.45)')
+
+    # Add text labels on bars
+    for bar in bars:
+        width = bar.get_width()
+        ax.text(width + 0.01, bar.get_y() + bar.get_height()/2.,
+                f'{width:.1%}', ha='left', va='center', fontsize=11, fontweight='bold')
+
+    ax.set_xlim(0, 1.05)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.0%}'))
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.grid(True, alpha=0.3, axis='x')
+
+    plt.tight_layout()
+
+    # Save plot
+    plt.savefig(f'{output_dir}/next_day_predictions_clf.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    logging.info("Saved next_day_predictions_clf.png")
+
 
 def main():
     """Main function"""
@@ -287,9 +361,23 @@ def main():
         print(f"Last Close Price: ${result['last_close']:.2f}")
         print(f"Primary Model: {result['primary_model']}")
         print(f"Signal Threshold: {result['threshold']}")
-        print("\nML Model Predictions:")
+        
         da_metrics = result.get('da_metrics', {})
         bh_acc = result.get('bh_accuracy', 0)
+        
+        print("\nML Classifier Predictions (Probability of UP):")
+        for model_name, pred_val in result['cl_predictions'].items():
+            model_key = model_name.lower()
+            da_value = da_metrics.get(model_key, {})
+            if isinstance(da_value, dict):
+                da_str = f"Raw DA: {da_value.get('raw_da', 0):.1%}, Conf DA (>0.55): {da_value.get('confident_da', 0):.1%} ({da_value.get('coverage', 0):.0%} coverage)"
+            elif isinstance(da_value, (int, float)):
+                da_str = f"DA: {da_value:.1%}"
+            else:
+                da_str = "DA: N/A"
+            print(f"  {model_name.upper()}: Probability of UP {pred_val[0]:.1%}, {da_str}")
+        
+        print("\nML Regressor Predictions:")
         for model, pred in result['predictions'].items():
             if model.startswith('ML_'):
                 model_key = model.replace('ML_', '').lower()
@@ -325,9 +413,10 @@ def main():
 
         logging.info(f"Next day prediction results saved to {output_file}")
 
-        # Create plot
+        # Create plots
         output_dir = os.path.join(os.path.dirname(__file__), 'reports', f'{args.ticker.lower()}_figures')
         create_prediction_plot(result, output_dir)
+        create_classification_prediction_plot(result, output_dir)
 
         logging.info("Next day prediction and plot completed successfully!")
 

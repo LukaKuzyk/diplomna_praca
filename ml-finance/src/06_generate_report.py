@@ -51,8 +51,8 @@ def load_metrics_data(ticker: str) -> dict:
                 if line == 'Baseline:':
                     current_model = 'Baseline'
                     data['metrics']['Baseline'] = {}
-                elif line.endswith('_Returns:'):
-                    current_model = line.replace('_Returns:', '')
+                elif line.endswith('_Returns:') or line.endswith('_Probability:'):
+                    current_model = line.replace(':', '')
                     data['metrics'][current_model] = {}
                 elif line and ':' in line and current_model:
                     key, value = line.split(':', 1)
@@ -96,7 +96,7 @@ def load_metrics_data(ticker: str) -> dict:
     if figures_dir.exists():
         plot_files = ['model_comparison.png', 'strategy_performance.png',
                      'prediction_stability.png', 'feature_analysis.png',
-                     'next_day_predictions.png']
+                     'next_day_predictions.png', 'next_day_predictions_clf.png']
         for plot_file in plot_files:
             plot_path = figures_dir / plot_file
             if plot_path.exists():
@@ -189,38 +189,73 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         story.append(Paragraph(summary_text, normal_style))
     story.append(Spacer(1, 20))
 
-    # Model Performance Table
+    # Model Performance Tables
     if data['metrics']:
-        story.append(Paragraph("Metriky Výkonnosti Modelov", styles['Heading2']))
+        story.append(Paragraph("Metriky Výkonnosti Modelov - Regresia", styles['Heading2']))
         story.append(Spacer(1, 12))
 
-        # Prepare table data
         headers = ['Model', 'RMSE', 'MAE', 'Raw DA', 'Confident DA', 'Coverage']
         table_data = [headers]
 
-        for model, metrics in data['metrics'].items():
-            if model == 'Baseline':
-                row = [
-                    'Buy & Hold (baseline)',
-                    '—', '—',
-                    f"{metrics.get('Buy_and_Hold_DA', 0):.1%}",
-                    '—', '100.0%'
-                ]
-            else:
-                row = [
-                    model.replace('ML_', ''),
-                    f"{metrics.get('RMSE', 0):.4f}",
-                    f"{metrics.get('MAE', 0):.4f}",
-                    f"{metrics.get('Raw_DA', 0):.1%}",
-                    f"{metrics.get('Confident_DA', 0):.1%}",
-                    f"{metrics.get('Coverage', 0):.1%}"
-                ]
+        reg_models = [(m, mets) for m, mets in data['metrics'].items() if m.startswith('ML_REG_')]
+        reg_models.sort(key=lambda x: x[1].get('Confident_DA', 0), reverse=True)
+
+        baseline_metrics = data['metrics'].get('Baseline', {})
+        if baseline_metrics:
+            row = [
+                'Buy & Hold',
+                '—', '—',
+                f"{baseline_metrics.get('Buy_and_Hold_DA', 0):.1%}",
+                '—', '100.0%'
+            ]
             table_data.append(row)
 
-        # Create table
+        for model, metrics in reg_models:
+            row = [
+                model.replace('ML_REG_', '').replace('_Returns', ''),
+                f"{metrics.get('RMSE', 0):.4f}",
+                f"{metrics.get('MAE', 0):.4f}",
+                f"{metrics.get('Raw_DA', 0):.1%}",
+                f"{metrics.get('Confident_DA', 0):.1%}",
+                f"{metrics.get('Coverage', 0):.1%}"
+            ]
+            table_data.append(row)
+
         table = Table(table_data)
         table.setStyle(table_style)
         story.append(table)
+        story.append(Spacer(1, 20))
+        
+        story.append(Paragraph("Metriky Výkonnosti Modelov - Klasifikácia", styles['Heading2']))
+        story.append(Spacer(1, 12))
+
+        headers_cl = ['Model', 'Mean Prob', 'Raw DA', 'Conf DA (>55%)', 'Coverage']
+        table_data_cl = [headers_cl]
+
+        cl_models = [(m, mets) for m, mets in data['metrics'].items() if m.startswith('ML_CL_')]
+        cl_models.sort(key=lambda x: x[1].get('Confident_DA', 0), reverse=True)
+
+        if baseline_metrics:
+            row = [
+                'Buy & Hold', '—',
+                f"{baseline_metrics.get('Buy_and_Hold_DA', 0):.1%}",
+                f"{baseline_metrics.get('Buy_and_Hold_DA', 0):.1%}", '100.0%'
+            ]
+            table_data_cl.append(row)
+
+        for model, metrics in cl_models:
+            row = [
+                model.replace('ML_CL_', '').replace('_Probability', ''),
+                f"{metrics.get('Mean_Probability', 0):.2%}",
+                f"{metrics.get('Raw_DA', 0):.1%}",
+                f"{metrics.get('Confident_DA', 0):.1%}",
+                f"{metrics.get('Coverage', 0):.1%}"
+            ]
+            table_data_cl.append(row)
+
+        table_cl = Table(table_data_cl)
+        table_cl.setStyle(table_style)
+        story.append(table_cl)
         story.append(Spacer(1, 20))
 
     # Next Day Prediction Section
@@ -493,22 +528,37 @@ def create_html_report(data: dict, output_path: str) -> None:
             </div>
         """
 
-    # Add Next Day Prediction Chart
-    if 'next_day_predictions' in data['plots']:
-        chart_path = data['plots']['next_day_predictions']
-        if os.path.exists(chart_path):
-            # Convert image to base64 for embedding
-            with open(chart_path, "rb") as img_file:
-                img_data = base64.b64encode(img_file.read()).decode('utf-8')
-
-            html_content += f"""
+    # Add Next Day Prediction Chart(s)
+    if 'next_day_predictions' in data['plots'] or 'next_day_predictions_clf' in data['plots']:
+        html_content += f"""
         <div class="section">
             <h2>📊 Next Day Price Predictions & Recommendations</h2>
+        """
+        if 'next_day_predictions' in data['plots']:
+            chart_path = data['plots']['next_day_predictions']
+            if os.path.exists(chart_path):
+                with open(chart_path, "rb") as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                html_content += f"""
             <div class="chart-container">
                 <img src="data:image/png;base64,{img_data}" alt="next_day_predictions">
             </div>
+                """
+        
+        if 'next_day_predictions_clf' in data['plots']:
+            chart_path_clf = data['plots']['next_day_predictions_clf']
+            if os.path.exists(chart_path_clf):
+                with open(chart_path_clf, "rb") as img_file:
+                    img_data_clf = base64.b64encode(img_file.read()).decode('utf-8')
+                html_content += f"""
+            <div class="chart-container" style="margin-top: 40px;">
+                <img src="data:image/png;base64,{img_data_clf}" alt="next_day_predictions_clf">
+            </div>
+                """
+                
+        html_content += """
         </div>
-            """
+        """
 
     html_content += """
         <div class="section">
@@ -533,7 +583,7 @@ def create_html_report(data: dict, output_path: str) -> None:
         </div>
 
         <div class="section">
-            <h2>📈 Model Performance Metrics</h2>
+            <h2>📈 Regression Model Performance</h2>
             <table class="metrics-table">
                 <thead>
                     <tr>
@@ -550,43 +600,50 @@ def create_html_report(data: dict, output_path: str) -> None:
     """
 
     if data['metrics']:
-        for model, metrics in data['metrics'].items():
-            if model == 'Baseline':
-                bh_val = metrics.get('Buy_and_Hold_DA', 0)
-                html_content += f"""
-                    <tr style="background-color: #e8e8e8; font-style: italic;">
-                        <td>Buy &amp; Hold</td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>{bh_val:.1%}</td>
-                        <td>{bh_val:.1%}</td>
-                        <td>100.0%</td>
-                        <td></td>
-                    </tr>
-                """
-            else:
-                total_days = int(metrics.get('Total_Test_Days', 0))
-                coverage = metrics.get('Coverage', 0)
-                trades = int(round(coverage * total_days))
-                trades_str = f"{trades} / {total_days}" if total_days > 0 else "—"
-                html_content += f"""
-                    <tr>
-                        <td>{model.replace('ML_', '')}</td>
-                        <td>{metrics.get('RMSE', 0):.4f}</td>
-                        <td>{metrics.get('MAE', 0):.4f}</td>
-                        <td>{metrics.get('Raw_DA', 0):.1%}</td>
-                        <td>{metrics.get('Confident_DA', 0):.1%}</td>
-                        <td>{coverage:.1%}</td>
-                        <td>{trades_str}</td>
-                    </tr>
-                """
+        baseline_metrics = data['metrics'].get('Baseline', {})
+        if baseline_metrics:
+            bh_val = baseline_metrics.get('Buy_and_Hold_DA', 0)
+            html_content += f"""
+                <tr style="background-color: #e8e8e8; font-style: italic;">
+                    <td>Buy &amp; Hold</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>{bh_val:.1%}</td>
+                    <td>{bh_val:.1%}</td>
+                    <td>100.0%</td>
+                    <td></td>
+                </tr>
+            """
+            
+        reg_models = [(m, mets) for m, mets in data['metrics'].items() if m.startswith('ML_REG_')]
+        reg_models.sort(key=lambda x: x[1].get('Confident_DA', 0), reverse=True)
+        
+        for model, metrics in reg_models:
+            total_days = int(metrics.get('Total_Test_Days', 0))
+            coverage = metrics.get('Coverage', 0)
+            trades = int(round(coverage * total_days))
+            trades_str = f"{trades} / {total_days}" if total_days > 0 else "—"
+            
+            # e.g. ML_REG_RF_Returns -> RF
+            model_display = model.replace('ML_REG_', '').replace('_Returns', '')
+            html_content += f"""
+                <tr>
+                    <td>{model_display} (Reg)</td>
+                    <td>{metrics.get('RMSE', 0):.4f}</td>
+                    <td>{metrics.get('MAE', 0):.4f}</td>
+                    <td>{metrics.get('Raw_DA', 0):.1%}</td>
+                    <td>{metrics.get('Confident_DA', 0):.1%}</td>
+                    <td>{coverage:.1%}</td>
+                    <td>{trades_str}</td>
+                </tr>
+            """
 
     html_content += """
                 </tbody>
             </table>
 
             <div style="margin-top: 20px; padding: 15px; background-color: #f0f4ff; border-radius: 8px; font-size: 0.9em;">
-                <h4 style="margin-top: 0;">📖 Popis Metrík</h4>
+                <h4 style="margin-top: 0;">📖 Popis Metrík (Regresia)</h4>
                 <ul style="margin-bottom: 0;">
                     <li><strong>RMSE</strong> (Root Mean Squared Error) — priemerná veľkosť chýb predikcie, penalizuje väčšie chyby výraznejšie. Čím nižšie, tým lepšie.</li>
                     <li><strong>MAE</strong> (Mean Absolute Error) — priemerný absolútny rozdiel medzi predikovanými a skutočnými log-výnosmi. Čím nižšie, tým lepšie.</li>
@@ -595,6 +652,78 @@ def create_html_report(data: dict, output_path: str) -> None:
                     <li><strong>Coverage</strong> — podiel obchodných dní, kedy model generuje obchodný signál (|prediction| &gt; prah). Vyššie coverage = častejšie obchodovanie.</li>
                     <li><strong>Trades</strong> — absolútny počet dní, kedy model obchodoval z celkového počtu testovacích dní (napr. "228 / 251" znamená, že model obchodoval 228 z 251 dostupných dní).</li>
                     <li><strong>Buy &amp; Hold</strong> — smerová presnosť naivnej stratégie, ktorá vždy predikuje "cena pôjde hore". Rovná sa percentu dní, kedy trh skutočne rástol. Modely by mali túto hodnotu prekonať, aby preukázali skutočnú predikčnú schopnosť.</li>
+                </ul>
+            </div>
+            
+        </div>
+    """
+    html_content += """
+                </tbody>
+            </table>
+            
+            <h2 style="margin-top: 40px;">🎯 Classification Model Performance</h2>
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Mean Probability</th>
+                        <th>Raw DA</th>
+                        <th>Confident DA (>55%)</th>
+                        <th>Coverage</th>
+                        <th>Trades</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    if data['metrics']:
+        # Also print Baseline row for classifiers
+        baseline_metrics = data['metrics'].get('Baseline', {})
+        if baseline_metrics:
+            bh_val = baseline_metrics.get('Buy_and_Hold_DA', 0)
+            html_content += f"""
+                <tr style="background-color: #e8e8e8; font-style: italic;">
+                    <td>Buy &amp; Hold</td>
+                    <td>—</td>
+                    <td>{bh_val:.1%}</td>
+                    <td>{bh_val:.1%}</td>
+                    <td>100.0%</td>
+                    <td></td>
+                </tr>
+            """
+            
+        cl_models = [(m, mets) for m, mets in data['metrics'].items() if m.startswith('ML_CL_')]
+        cl_models.sort(key=lambda x: x[1].get('Confident_DA', 0), reverse=True)
+        
+        for model, metrics in cl_models:
+            total_days = int(metrics.get('Total_Test_Days', 0))
+            coverage = metrics.get('Coverage', 0)
+            trades = int(round(coverage * total_days))
+            trades_str = f"{trades} / {total_days}" if total_days > 0 else "—"
+            
+            # e.g. ML_CL_RF_Probability -> RF
+            model_display = model.replace('ML_CL_', '').replace('_Probability', '')
+            html_content += f"""
+                <tr>
+                    <td>{model_display} (Clf)</td>
+                    <td>{metrics.get('Mean_Probability', 0):.2%}</td>
+                    <td>{metrics.get('Raw_DA', 0):.1%}</td>
+                    <td>{metrics.get('Confident_DA', 0):.1%}</td>
+                    <td>{coverage:.1%}</td>
+                    <td>{trades_str}</td>
+                </tr>
+            """
+    html_content += """
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 20px; padding: 15px; background-color: #fff0f5; border-radius: 8px; font-size: 0.9em;">
+                <h4 style="margin-top: 0;">📖 Popis Metrík (Klasifikácia)</h4>
+                <ul style="margin-bottom: 0;">
+                    <li><strong>Mean Probability</strong> — priemerná pravdepodobnosť z predikcií modelu. Hodnota blízko 50% signalizuje neistotu, kým vychýlené hodnoty indikujú silnejšie trendy.</li>
+                    <li><strong>Raw DA</strong> — percento dní, kedy model správne predikoval smer (pravdepodobnosť > 50% = výnos nahor), merané plošne na všetkých dňoch.</li>
+                    <li><strong>Confident DA (>55%)</strong> — smerová presnosť počítaná len v dňoch, kedy si model bol viac istý pohnutím trhu (t.j. predpovedal P(Up) > 55% pre rastové signály, alebo P(Up) < 45% pre klesajúce). Týmto odfiltruje neutrálne odhady blízko 50%.</li>
+                    <li><strong>Coverage</strong> — percentuálny podiel dní, kedy model vyprodukoval silný "confident" signál (pravdepodobnosť vychýlená aspoň o 5% od nezávislých 50%).</li>
+                    <li><strong>Trades</strong> — skutočný počet vygenerovaných sebavedomých obchodných rozhodnutí.</li>
                 </ul>
             </div>
         </div>
@@ -667,7 +796,7 @@ def create_html_report(data: dict, output_path: str) -> None:
     """
 
     for chart_name, chart_path in data['plots'].items():
-        if chart_name != 'next_day_predictions' and os.path.exists(chart_path):
+        if chart_name not in ['next_day_predictions', 'next_day_predictions_clf'] and os.path.exists(chart_path):
             # Convert image to base64 for embedding
             with open(chart_path, "rb") as img_file:
                 img_data = base64.b64encode(img_file.read()).decode('utf-8')
@@ -765,6 +894,18 @@ def create_html_report(data: dict, output_path: str) -> None:
 
         document.addEventListener('keydown', function(e) {{
             if (e.key === 'Escape') lightbox.classList.remove('active');
+        }});
+
+        // Auto-sort tables by Confident DA on load
+        window.addEventListener('DOMContentLoaded', function() {{
+            document.querySelectorAll('.metrics-table').forEach(function(table) {{
+                var ths = Array.from(table.querySelectorAll('th'));
+                var confDaTh = ths.find(function(t) {{ return t.textContent.indexOf('Confident DA') !== -1; }});
+                if (confDaTh) {{
+                    confDaTh.classList.add('sort-asc'); // next click makes it desc
+                    confDaTh.click();
+                }}
+            }});
         }});
         </script>
     </body>

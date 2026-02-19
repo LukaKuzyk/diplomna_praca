@@ -10,7 +10,7 @@ from config import DEFAULT_SEED
 
 # Conditional ML imports
 try:
-    from xgboost import XGBRegressor
+    from xgboost import XGBRegressor, XGBClassifier
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
@@ -33,8 +33,8 @@ try:
 except ImportError:
     NGBOOST_AVAILABLE = False
 
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor
-from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor, RandomForestClassifier
+from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 
@@ -232,15 +232,92 @@ def get_tuned_ml_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
     return models
 
 
-class MLModelPredictor:
-    """ML model predictor with multiple models"""
+def get_classification_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
+    """Get dictionary of ML classification models"""
+    models = {}
 
-    def __init__(self, random_state: int = DEFAULT_SEED):
+    # Logistic Regression (baseline classifier)
+    models['cl_logreg'] = (LogisticRegression(
+        random_state=random_state, max_iter=1000, class_weight='balanced'
+    ), StandardScaler())
+
+    # Random Forest Classifier
+    models['cl_rf'] = (RandomForestClassifier(
+        n_estimators=100,
+        max_depth=15,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        class_weight='balanced',
+        random_state=random_state
+    ), StandardScaler())
+
+    # XGBoost Classifier
+    if XGBOOST_AVAILABLE:
+        models['cl_xgb'] = (XGBClassifier(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            eval_metric='logloss',
+            random_state=random_state
+        ), StandardScaler())
+    else:
+        logging.warning("XGBoost not available, skipping XGBoost classifier")
+
+    return models
+
+
+def get_tuned_classification_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
+    """Get classification models with GridSearchCV tuning for RF and XGB"""
+    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+
+    models = get_classification_models(random_state)
+    tuned_models = {}
+    cv = TimeSeriesSplit(n_splits=3)
+
+    for name, (model, scaler) in models.items():
+        if name == 'cl_rf':
+            param_grid = {
+                'n_estimators': [100, 200],
+                'max_depth': [10, 15, 20],
+                'min_samples_split': [2, 5]
+            }
+            grid_search = GridSearchCV(model, param_grid, cv=cv, scoring='roc_auc', n_jobs=-1)
+            tuned_models[name] = (grid_search, scaler)
+
+        elif name == 'cl_xgb':
+            param_grid = {
+                'n_estimators': [100, 200],
+                'max_depth': [3, 5, 7],
+                'learning_rate': [0.01, 0.05, 0.1]
+            }
+            grid_search = GridSearchCV(model, param_grid, cv=cv, scoring='roc_auc', n_jobs=-1)
+            tuned_models[name] = (grid_search, scaler)
+
+        else:
+            # Keep other models without tuning
+            tuned_models[name] = (model, scaler)
+
+    return tuned_models
+
+
+class MLModelPredictor:
+    """Wrapper class to handle training and prediction with multiple ML models"""
+
+    def __init__(self, random_state: int = DEFAULT_SEED, model_type: str = 'regression'):
         self.random_state = random_state
         self.models = {}
         self.scalers = {}
+        self.is_fitted = False
 
-        all_models = get_ml_models(random_state)
+        if model_type == 'regression':
+            all_models = get_ml_models(random_state)
+        elif model_type == 'classification':
+            all_models = get_classification_models(random_state)
+        else:
+            raise ValueError(f"Unknown model_type: {model_type}. Choose 'regression' or 'classification'.")
+
         for model_name, (model, scaler) in all_models.items():
             self.models[model_name] = model
             self.scalers[model_name] = scaler
@@ -252,19 +329,49 @@ class MLModelPredictor:
             X_scaled = self.scalers[model_name].fit_transform(X)
             model.fit(X_scaled, y)
             logging.info(f"{model_name.upper()} model fitted successfully")
+        self.is_fitted = True
 
-    def predict(self, X: pd.DataFrame, model_name: str = 'xgb') -> float:
+    def predict(self, X: pd.DataFrame, model_name: str) -> float:
         """Make prediction with specific model"""
+        if not self.is_fitted:
+            raise ValueError("Models not fitted yet")
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} not available")
 
-        X_scaled = self.scalers[model_name].transform(X)
-        prediction = self.models[model_name].predict(X_scaled)[0]
+        model = self.models[model_name]
+        scaler = self.scalers[model_name]
+
+        X_scaled = scaler.transform(X)
+        prediction = model.predict(X_scaled)[0]
         return prediction
 
     def predict_all(self, X: pd.DataFrame) -> Dict[str, float]:
         """Make predictions with all models"""
+        if not self.is_fitted:
+            raise ValueError("Models not fitted yet")
+
         predictions = {}
-        for model_name in self.models.keys():
-            predictions[model_name] = self.predict(X, model_name)
+        for model_name, model in self.models.items():
+            scaler = self.scalers[model_name]
+            X_scaled = scaler.transform(X)
+            y_pred = model.predict(X_scaled)[0] # Assuming single prediction for single X
+            predictions[model_name] = y_pred
+
+        return predictions
+
+    def predict_proba_all(self, X: pd.DataFrame) -> Dict[str, np.ndarray]:
+        """Make probability predictions (for class 1: UP) with all trained classification models"""
+        if not self.is_fitted:
+            raise ValueError("Models not fitted yet")
+
+        predictions = {}
+        for model_name, model in self.models.items():
+            if not hasattr(model, 'predict_proba'):
+                continue
+            scaler = self.scalers[model_name]
+            X_scaled = scaler.transform(X)
+            # Probability of target=1 (UP)
+            y_pred_proba = model.predict_proba(X_scaled)[:, 1]
+            predictions[model_name] = y_pred_proba
+
         return predictions

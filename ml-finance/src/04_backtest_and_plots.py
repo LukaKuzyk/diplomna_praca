@@ -133,15 +133,23 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
     # 3. Rolling Raw Directional Accuracy (honest, no threshold)
     ax3 = axes[1, 0]
     window_size = 50
-    for i, col in enumerate(model_cols):
+    all_model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') or col.startswith('ml_cl_')]
+    for i, col in enumerate(all_model_cols):
         pred_returns = combined_df[col]
         mask = actual_returns.notna() & pred_returns.notna()
         if mask.sum() > window_size:
             actual_sign = np.sign(actual_returns[mask])
-            pred_sign = np.sign(pred_returns[mask])
+            if col.startswith('ml_cl_'):
+                # Classifier probability: centered around 0.5
+                pred_sign = np.sign(pred_returns[mask] - 0.5)
+                label_name = col.replace('ml_cl_', 'CL_').upper()
+            else:
+                pred_sign = np.sign(pred_returns[mask])
+                label_name = col.replace('ml_y_pred_', 'REG_').upper()
+                
             accuracy = (actual_sign == pred_sign).rolling(window=window_size).mean()
             ax3.plot(accuracy.index, accuracy.values, color=colors[i % len(colors)],
-                    label=col.replace('ml_y_pred_', '').upper(), linewidth=2)
+                    label=label_name, linewidth=2)
 
     # Buy & Hold baseline
     bh_mask = actual_returns.notna()
@@ -158,18 +166,25 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
     ax3.grid(True, alpha=0.3)
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 
-    # 4. Model Correlation Heatmap
+    # 4. Model Correlation Heatmap (using signals to allow comparing reg vs clf)
     ax4 = axes[1, 1]
-    pred_data = combined_df[model_cols].dropna()
+    pred_data = combined_df[all_model_cols].dropna().copy()
     if len(pred_data) > 0:
+        # Convert all to signals for fair correlation (-1, 0, 1)
+        for c in all_model_cols:
+            if c.startswith('ml_cl_'):
+                pred_data[c] = np.sign(pred_data[c] - 0.5)
+            else:
+                pred_data[c] = np.sign(pred_data[c])
+        
         corr_matrix = pred_data.corr()
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0,
                    square=True, ax=ax4, cbar_kws={'shrink': 0.8})
-        ax4.set_title('Model Prediction Correlations')
-        ax4.set_xticklabels([col.replace('ml_y_pred_', '').upper() for col in model_cols],
-                           rotation=45, ha='right')
-        ax4.set_yticklabels([col.replace('ml_y_pred_', '').upper() for col in model_cols],
-                           rotation=0)
+        ax4.set_title('Model Signal Correlations')
+        
+        labels = [c.replace('ml_cl_', 'CL_').replace('ml_y_pred_', 'REG_').upper() for c in all_model_cols]
+        ax4.set_xticklabels(labels, rotation=45, ha='right')
+        ax4.set_yticklabels(labels, rotation=0)
 
     plt.tight_layout()
     plt.savefig(f'{output_dir}/model_comparison.png', dpi=300, bbox_inches='tight')
@@ -196,14 +211,24 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
     # Calculate strategy metrics for each model
     strategy_results = {}
 
-    for col in model_cols:
-        model_name = col.replace('ml_y_pred_', '').upper()
+    all_model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') or col.startswith('ml_cl_')]
+    for col in all_model_cols:
+        if col.startswith('ml_cl_'):
+            model_name = col.replace('ml_cl_', 'CL_').upper()
+        else:
+            model_name = col.replace('ml_y_pred_', 'REG_').upper()
+            
         pred_returns = combined_df[col]
         actual_returns = combined_df['ml_y_true']
 
         # Only-long strategy
         signals = pd.Series(0, index=pred_returns.index)
-        signals[pred_returns > SIGNAL_THRESHOLD] = 1
+        if col.startswith('ml_cl_'):
+            # Probabilities: > 0.5 is UP signal
+            signals[pred_returns > 0.5] = 1
+        else:
+            # Regressions: > THRESHOLD is UP signal
+            signals[pred_returns > SIGNAL_THRESHOLD] = 1
 
         # Calculate returns
         data = pd.DataFrame({
@@ -304,6 +329,7 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
     fig.suptitle(f'{ticker.upper()} ML Prediction Stability Analysis', fontsize=16, fontweight='bold')
 
     model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_')]
+    all_model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') or col.startswith('ml_cl_')]
     colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan']
 
     # 1. Prediction Variance Over Time
@@ -368,13 +394,20 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
     magnitude_bins = [(0, 0.001), (0.001, 0.002), (0.002, 0.005), (0.005, 0.01), (0.01, 0.1)]
     bin_labels = ['0-0.1%', '0.1-0.2%', '0.2-0.5%', '0.5-1%', '1%+']
 
-    for i, col in enumerate(model_cols[:3]):  # Show only first 3 models to avoid clutter
+    for i, col in enumerate(all_model_cols[:3]):  # Show only first 3 models to avoid clutter
         pred_returns = combined_df[col]
         mask = actual_returns.notna() & pred_returns.notna()
         if mask.sum() > 0:
-            pred_magnitude = np.abs(pred_returns[mask])
+            if col.startswith('ml_cl_'):
+                pred_magnitude = np.abs(pred_returns[mask] - 0.5)
+                pred_sign = np.sign(pred_returns[mask] - 0.5)
+                label_name = col.replace('ml_cl_', 'CL_').upper()
+            else:
+                pred_magnitude = np.abs(pred_returns[mask])
+                pred_sign = np.sign(pred_returns[mask])
+                label_name = col.replace('ml_y_pred_', 'REG_').upper()
+
             actual_sign = np.sign(actual_returns[mask])
-            pred_sign = np.sign(pred_returns[mask])
 
             hit_rates = []
             for bin_start, bin_end in magnitude_bins:
@@ -386,7 +419,7 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
                     hit_rates.append(np.nan)
 
             ax4.plot(bin_labels, hit_rates, 'o-', color=colors[i % len(colors)],
-                    label=col.replace('ml_y_pred_', '').upper(), linewidth=2, markersize=8)
+                    label=label_name, linewidth=2, markersize=8)
 
     ax4.axhline(y=0.5, color='black', linestyle='--', alpha=0.7, label='Random')
     ax4.set_xlabel('Prediction Magnitude')
@@ -500,7 +533,8 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
 
     if cat_importance:
         cat_series = pd.Series(cat_importance).sort_values(ascending=True)
-        pie_colors = plt.cm.Pastel1(np.linspace(0, 1, len(cat_series)))
+        custom_colors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac']
+        pie_colors = custom_colors[:len(cat_series)]
         ax4.barh(range(len(cat_series)), cat_series.values, color=pie_colors)
         ax4.set_yticks(range(len(cat_series)))
         ax4.set_yticklabels(cat_series.index, fontsize=8)
@@ -565,7 +599,27 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
             ml_metrics['Confident_DA'] = da['confident_da']
             ml_metrics['Coverage'] = da['coverage']
             ml_metrics['Total_Test_Days'] = int(mask.sum())
-            metrics[f'ML_{model_name}_Returns'] = ml_metrics
+            metrics[f'ML_REG_{model_name}_Returns'] = ml_metrics
+
+    # ML Classification metrics for each model
+    cl_cols = [col for col in combined_df.columns if col.startswith('ml_cl_')]
+    for col in cl_cols:
+        model_name = col.replace('ml_cl_', '').upper()
+        mask = combined_df['ml_y_true'].notna() & combined_df[col].notna()
+        if mask.sum() > 0:
+            mapped_preds = combined_df.loc[mask, col] - 0.5
+            da = directional_accuracy(
+                combined_df.loc[mask, 'ml_y_true'],
+                mapped_preds,
+                threshold=0.05
+            )
+            metrics[f'ML_CL_{model_name}_Probability'] = {
+                'Raw_DA': da['raw_da'],
+                'Confident_DA': da['confident_da'],
+                'Coverage': da['coverage'],
+                'Mean_Probability': float(combined_df.loc[mask, col].mean()),
+                'Total_Test_Days': int(mask.sum())
+            }
 
     return metrics
 

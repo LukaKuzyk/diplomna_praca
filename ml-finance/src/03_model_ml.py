@@ -14,7 +14,7 @@ from utils import (
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features, select_features_lasso
-from models import get_ml_models, get_tuned_ml_models
+from models import get_ml_models, get_tuned_ml_models, get_classification_models, get_tuned_classification_models
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -43,6 +43,9 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     target = df_features['log_ret'].shift(-1)
     target = target.dropna()
     df_features = df_features.loc[target.index]
+    
+    # Classification target: 1 if return > 0, else 0
+    target_class = (target > 0).astype(int)
 
     # Storage for all predictions
     all_predictions = []
@@ -73,11 +76,14 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         last_selected_features = selected_features
 
         # Fit and predict with multiple models
-        models = get_tuned_ml_models() if tune else get_ml_models()
+        reg_models = get_tuned_ml_models() if tune else get_ml_models()
+        clf_models = get_tuned_classification_models() if tune else get_classification_models()
+        
         predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret_next'}
 
-        for model_name, (model, scaler) in models.items():
-            logging.info(f"  Training {model_name.upper()}...")
+        # Train regressors
+        for model_name, (model, scaler) in reg_models.items():
+            logging.info(f"  Training {model_name.upper()} (Regressor)...")
             X_scaled = scaler.fit_transform(train_features)
             model.fit(X_scaled, train_split)
 
@@ -91,10 +97,29 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
 
             predictions[f'y_pred_{model_name}'] = y_pred
 
+        # Train classifiers
+        train_split_class = target_class.loc[train_split.index]
+        for model_name, (model, scaler) in clf_models.items():
+            logging.info(f"  Training {model_name.upper()} (Classifier)...")
+            X_scaled = scaler.fit_transform(train_features)
+            model.fit(X_scaled, train_split_class)
+
+            # Log best params for GridSearchCV-wrapped models
+            if hasattr(model, 'best_params_'):
+                logging.info(f"  {model_name.upper()} best params: {model.best_params_}")
+
+            if hasattr(model, 'predict_proba'):
+                X_test_scaled = scaler.transform(test_features)
+                # Predict probability of class 1 (UP)
+                y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
+                logging.info(f"  {model_name.upper()} done (mean prob: {y_pred_proba.mean():.6f})")
+                predictions[f'{model_name}'] = y_pred_proba
+
         # Store predictions
         window_results = pd.DataFrame(predictions)
         all_predictions.append(window_results)
-        last_trained_models = models
+        # Store both sets of models for feature importances
+        last_trained_models = {**reg_models, **clf_models}
 
     # Combine all predictions
     if not all_predictions:
@@ -118,11 +143,13 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         logging.info(f"Feature importances saved to {importance_path}")
 
     # Calculate metrics for each model
-    models = get_ml_models()
+    reg_models = get_ml_models()
+    clf_models = get_classification_models()
     bh_acc = buy_and_hold_accuracy(results_df['y_true'])
     logging.info(f"Baseline (Buy & Hold) accuracy: {bh_acc:.1%}")
 
-    for model_name in models.keys():
+    # Regressors
+    for model_name in reg_models.keys():
         pred_col = f'y_pred_{model_name}'
         mask = results_df['y_true'].notna() & results_df[pred_col].notna()
         if mask.sum() > 0:
@@ -144,6 +171,30 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             logging.info(
                 f"{model_name.upper()}: Raw DA={da['raw_da']:.1%}, "
                 f"Confident DA={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), "
+                f"B&H baseline={bh_acc:.1%}"
+            )
+
+    # Classifiers
+    for model_name in clf_models.keys():
+        pred_col = f'{model_name}'
+        if pred_col not in results_df.columns: continue
+        mask = results_df['y_true'].notna() & results_df[pred_col].notna()
+        if mask.sum() > 0:
+            # For classifiers, probability > 0.5 means UP (+1), else DOWN (-1)
+            # We map this to a pseudo continuous array where predictions center around 0
+            # so standard directional_accuracy works. prob = 0.6 -> 0.1, prob = 0.4 -> -0.1
+            mapped_preds = results_df.loc[mask, pred_col] - 0.5
+
+            da = directional_accuracy(
+                results_df.loc[mask, 'y_true'],
+                mapped_preds,
+                # Threshold for confidence: > 0.55 or < 0.45. Since we subtracted 0.5, threshold is > 0.05
+                threshold=0.05
+            )
+
+            logging.info(
+                f"{model_name.upper()}: Raw DA={da['raw_da']:.1%}, "
+                f"Confident DA (P>0.55)={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), "
                 f"B&H baseline={bh_acc:.1%}"
             )
 
