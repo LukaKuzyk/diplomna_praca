@@ -6,7 +6,7 @@ DEFAULT_SEED = 42
 
 DEFAULT_YEARS = 5
 
-SIGNAL_THRESHOLD = 0.002
+SIGNAL_THRESHOLD = 0.001
 
 FEATURE_COLS = [
     'log_ret_lag_1', 'log_ret_lag_2', 'log_ret_lag_3', 'log_ret_lag_5',

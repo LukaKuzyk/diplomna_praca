@@ -1,8 +1,8 @@
-Best Model: LINEAR
-Predicted Return: 0.482638
-Raw_DA: 0.541322
+Best Model: RF
+Predicted Return: -0.173635
+Raw_DA: 0.533058
 Buy_Hold_DA: 0.532051
-Recommendation: BUY
+Recommendation: HOLD/CASH
 Last Close: 260.55
 Last Date: 2026-02-19
-Signal Threshold: 0.002
+Signal Threshold: 0.001

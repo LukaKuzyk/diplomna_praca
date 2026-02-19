@@ -13,7 +13,7 @@ from utils import (
     save_predictions_csv
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
-from features import create_features
+from features import create_features, select_features_lasso
 from models import get_ml_models, get_tuned_ml_models
 
 # Suppress warnings for cleaner output
@@ -62,6 +62,16 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             logging.warning(f"Skipping window {window_id} due to insufficient data")
             continue
 
+        # Feature selection with Lasso
+        selected_features = select_features_lasso(train_features, train_split)
+        if not selected_features:
+            logging.warning("Lasso selected 0 features, falling back to all features")
+            selected_features = FEATURE_COLS
+            
+        train_features = train_features[selected_features]
+        test_features = test_features[selected_features]
+        last_selected_features = selected_features
+
         # Fit and predict with multiple models
         models = get_tuned_ml_models() if tune else get_ml_models()
         predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret_next'}
@@ -101,7 +111,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             importance_data[model_name.upper()] = estimator.feature_importances_
 
     if importance_data:
-        importance_df = pd.DataFrame(importance_data, index=FEATURE_COLS)
+        importance_df = pd.DataFrame(importance_data, index=last_selected_features)
         importance_path = os.path.join(os.path.dirname(__file__), 'reports', f'{ticker.lower()}_feature_importance.csv')
         os.makedirs(os.path.dirname(importance_path), exist_ok=True)
         importance_df.to_csv(importance_path)

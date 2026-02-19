@@ -3,8 +3,36 @@ Shared feature engineering for the ML Finance pipeline.
 """
 import logging
 import os
+from typing import List
+
 import numpy as np
 import pandas as pd
+
+
+def select_features_lasso(X_train: pd.DataFrame, y_train: pd.Series, max_features: int = 15) -> List[str]:
+    """Select features using Lasso (L1) regularization.
+    Returns the top 'max_features' based on absolute Lasso coefficients."""
+    from sklearn.linear_model import Lasso
+    from sklearn.preprocessing import StandardScaler
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_train)
+
+    # Use a small alpha to get non-zero coefficients for most features
+    lasso = Lasso(alpha=0.0001, max_iter=5000, random_state=42)
+    lasso.fit(X_scaled, y_train)
+
+    # Get absolute coefficients
+    coef_series = pd.Series(np.abs(lasso.coef_), index=X_train.columns)
+    
+    # Filter strictly non-zero
+    coef_series = coef_series[coef_series > 0]
+    
+    # Take top N features by magnitude
+    selected = coef_series.nlargest(max_features).index.tolist()
+    logging.info(f"Lasso selected top {len(selected)}/{len(X_train.columns)} features")
+    return selected
+
 
 
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:

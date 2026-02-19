@@ -18,7 +18,7 @@ from utils import (
     directional_accuracy, buy_and_hold_accuracy, ensure_dirs
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
-from features import create_features
+from features import create_features, select_features_lasso
 from models import get_ml_models, MLModelPredictor
 
 # Suppress warnings for cleaner output
@@ -101,6 +101,14 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     train_target = target.iloc[:-1].fillna(0)
     train_close = df_features['close']
 
+    # Feature selection with Lasso
+    selected_features = select_features_lasso(train_features, train_target)
+    if not selected_features:
+        logging.warning("Lasso selected 0 features, falling back to all features")
+        selected_features = feature_cols
+
+    train_features = train_features[selected_features]
+
     if len(train_features) < 50:
         raise ValueError("Not enough data for training")
 
@@ -112,7 +120,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
 
     # Prepare features for next day prediction
     last_row = df_features.iloc[-1]
-    next_day_features = pd.DataFrame([last_row[feature_cols].values], columns=feature_cols)
+    next_day_features = pd.DataFrame([last_row[selected_features].values], columns=selected_features)
 
     # Get predictions from all ML models
     ml_predictions = ml_predictor.predict_all(next_day_features)
