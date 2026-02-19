@@ -1,8 +1,8 @@
-Best Model: XGB
-Predicted Return: 0.069726
-Raw_DA: 0.868313
-Buy_Hold_DA: 0.514011
+Best Model: EXTRATREES
+Predicted Return: 0.062744
+Raw_DA: 0.510373
+Buy_Hold_DA: 0.514423
 Recommendation: HOLD/CASH
-Last Close: 640.07
-Last Date: 2026-02-18
+Last Close: 644.78
+Last Date: 2026-02-19
 Signal Threshold: 0.002

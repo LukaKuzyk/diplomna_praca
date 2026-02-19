@@ -66,9 +66,9 @@ def combine_ml_data(df_base: pd.DataFrame, df_ml: pd.DataFrame) -> pd.DataFrame:
     # Remove duplicate indices in ML predictions
     df_ml = df_ml[~df_ml.index.duplicated(keep='last')]
 
-    # Add ML predictions
+    # Add ML predictions and y_true (next-day return target)
     for col in df_ml.columns:
-        if col not in ['window_id', 'target', 'y_true']:
+        if col not in ['window_id', 'target']:
             combined_df[f"ml_{col}"] = df_ml[col]
 
     # Remove duplicates and sort
@@ -90,7 +90,7 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
 
     # 1. Predictions vs Actual (scatter plot)
     ax1 = axes[0, 0]
-    actual_returns = combined_df['log_ret']
+    actual_returns = combined_df['ml_y_true']
     for i, col in enumerate(model_cols):
         pred_returns = combined_df[col]
         mask = actual_returns.notna() & pred_returns.notna()
@@ -199,7 +199,7 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
     for col in model_cols:
         model_name = col.replace('ml_y_pred_', '').upper()
         pred_returns = combined_df[col]
-        actual_returns = combined_df['log_ret']
+        actual_returns = combined_df['ml_y_true']
 
         # Only-long strategy
         signals = pd.Series(0, index=pred_returns.index)
@@ -212,7 +212,7 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
         }).dropna()
 
         if len(data) > 0:
-            strategy_returns = data['signals'].shift(1) * data['returns']
+            strategy_returns = data['signals'] * data['returns']
             strategy_returns = strategy_returns.dropna()
 
             if len(strategy_returns) > 0:
@@ -363,7 +363,7 @@ def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str,
 
     # 4. Hit Rate by Prediction Magnitude
     ax4 = axes[1, 1]
-    actual_returns = combined_df['log_ret']
+    actual_returns = combined_df['ml_y_true']
 
     magnitude_bins = [(0, 0.001), (0.001, 0.002), (0.002, 0.005), (0.005, 0.01), (0.01, 0.1)]
     bin_labels = ['0-0.1%', '0.1-0.2%', '0.2-0.5%', '0.5-1%', '1%+']
@@ -457,9 +457,10 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
         from features import create_features
         raw_data = pd.read_csv(features_path)
         feature_data = create_features(raw_data)
+        next_day_ret = feature_data['log_ret'].shift(-1)
         for col in importance_df.index:
-            if col in feature_data.columns and 'log_ret' in feature_data.columns:
-                corr = feature_data[col].corr(feature_data['log_ret'])
+            if col in feature_data.columns:
+                corr = feature_data[col].corr(next_day_ret)
                 if not np.isnan(corr):
                     correlations[col] = corr
 
@@ -470,7 +471,7 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
         ax3.barh(range(len(top_corr)), top_corr.values, color=bar_colors, alpha=0.8)
         ax3.set_yticks(range(len(top_corr)))
         ax3.set_yticklabels(top_corr.index, fontsize=8)
-        ax3.set_xlabel('Pearson Correlation with log_ret')
+        ax3.set_xlabel('Pearson Correlation with next-day log_ret')
         ax3.set_title('Top 20 Features — Correlation with Target')
         ax3.axvline(x=0, color='black', linewidth=0.8)
         ax3.grid(True, alpha=0.3, axis='x')
@@ -549,14 +550,14 @@ def calculate_ml_metrics(combined_df: pd.DataFrame) -> Dict[str, Dict[str, float
     ml_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_')]
     for col in ml_cols:
         model_name = col.replace('ml_y_pred_', '').upper()
-        mask = combined_df['log_ret'].notna() & combined_df[col].notna()
+        mask = combined_df['ml_y_true'].notna() & combined_df[col].notna()
         if mask.sum() > 0:
             ml_metrics = evaluate_regression(
-                combined_df.loc[mask, 'log_ret'],
+                combined_df.loc[mask, 'ml_y_true'],
                 combined_df.loc[mask, col]
             )
             da = directional_accuracy(
-                combined_df.loc[mask, 'log_ret'],
+                combined_df.loc[mask, 'ml_y_true'],
                 combined_df.loc[mask, col],
                 threshold=SIGNAL_THRESHOLD
             )

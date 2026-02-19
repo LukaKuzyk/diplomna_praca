@@ -92,9 +92,13 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     if missing_features:
         logging.warning(f"Missing features: {missing_features}")
 
-    # Use all available data for training
-    train_features = df_features[feature_cols]
-    train_target = df_features['log_ret']
+    # Use all data for features, but target is next-day return (prevents data leakage)
+    all_features = df_features[feature_cols]
+    target = df_features['log_ret'].shift(-1)
+
+    # For training: exclude last row (no next-day return known)
+    train_features = all_features.iloc[:-1]
+    train_target = target.iloc[:-1].fillna(0)
     train_close = df_features['close']
 
     if len(train_features) < 50:

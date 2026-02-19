@@ -1,0 +1,8 @@
+Best Model: XGB
+Predicted Return: -0.093059
+Raw_DA: 0.908714
+Buy_Hold_DA: 0.534884
+Recommendation: HOLD/CASH
+Last Close: 150.93
+Last Date: 2026-02-19
+Signal Threshold: 0.002

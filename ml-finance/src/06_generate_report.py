@@ -559,9 +559,9 @@ def create_html_report(data: dict, output_path: str) -> None:
                         <td>—</td>
                         <td>—</td>
                         <td>{bh_val:.1%}</td>
-                        <td>—</td>
+                        <td>{bh_val:.1%}</td>
                         <td>100.0%</td>
-                        <td>—</td>
+                        <td>241/241</td>
                     </tr>
                 """
             else:

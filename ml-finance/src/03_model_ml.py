@@ -39,12 +39,17 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     if missing_features:
         raise ValueError(f"Missing features: {missing_features}")
 
+    # Target: next day's log return (prevents data leakage)
+    target = df_features['log_ret'].shift(-1)
+    target = target.dropna()
+    df_features = df_features.loc[target.index]
+
     # Storage for all predictions
     all_predictions = []
 
     # Walk-forward validation
     for train_split, test_split, window_id in train_test_splits(
-        df_features['log_ret'], train_window, test_window, step
+        target, train_window, test_window, step
     ):
         logging.info(f"Window {window_id}: train={len(train_split)}, test={len(test_split)}")
 
@@ -59,7 +64,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
 
         # Fit and predict with multiple models
         models = get_tuned_ml_models() if tune else get_ml_models()
-        predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret'}
+        predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret_next'}
 
         for model_name, (model, scaler) in models.items():
             logging.info(f"  Training {model_name.upper()}...")

@@ -21,35 +21,35 @@ FEATURE_COLS = [
     'vix_close', 'vix_change', 'vix_change_lag_1', 'vix_change_lag_2', 'vix_change_lag_3',
     'qqq_change', 'qqq_change_lag_1', 'qqq_change_lag_2', 'qqq_change_lag_3',
     'snp500_change', 'snp500_change_lag_1', 'snp500_change_lag_2', 'snp500_change_lag_3',
-    # 'earnings_week',  # < 0.2% importance
+    'earnings_week',
     'iphone_search',
-    # 'ai_search',  # < 0.2% importance
-    # 'election_search',  # < 0.2% importance
+    'ai_search',
+    'election_search',
     'trump_search', 'stock_search',
-    # 'war_news',  # < 0.2% importance
-    # 'unemployment_news',  # < 0.2% importance
+    'war_news',
+    'unemployment_news',
     'tariffs_news', 'earnings_news', 'ai_news',
-    # 'iphone_search_lag_1',  # < 0.2% importance
-    # 'iphone_search_lag_2',  # < 0.2% importance
+    'iphone_search_lag_1',
+    'iphone_search_lag_2',
     'iphone_search_lag_3',
     'ai_search_lag_1', 'ai_search_lag_2',
-    # 'ai_search_lag_3',  # < 0.2% importance
+    'ai_search_lag_3',
     'election_search_lag_1',
-    # 'election_search_lag_2',  # < 0.2% importance
+    'election_search_lag_2',
     'election_search_lag_3',
     'trump_search_lag_1', 'trump_search_lag_2', 'trump_search_lag_3',
     'stock_search_lag_1', 'stock_search_lag_2',
-    # 'stock_search_lag_3',  # < 0.2% importance
-    # 'war_news_lag_1',  # < 0.2% importance
-    # 'war_news_lag_2',  # < 0.2% importance
-    # 'war_news_lag_3',  # < 0.2% importance
-    # 'unemployment_news_lag_1',  # < 0.2% importance
-    # 'unemployment_news_lag_2',  # < 0.2% importance
-    # 'unemployment_news_lag_3',  # < 0.2% importance
-    # 'tariffs_news_lag_1',  # < 0.2% importance
+    'stock_search_lag_3',
+    'war_news_lag_1',
+    'war_news_lag_2',
+    'war_news_lag_3',
+    'unemployment_news_lag_1',
+    'unemployment_news_lag_2',
+    'unemployment_news_lag_3',
+    'tariffs_news_lag_1',
     'tariffs_news_lag_2', 'tariffs_news_lag_3',
     'earnings_news_lag_1',
-    # 'earnings_news_lag_2',  # < 0.2% importance
+    'earnings_news_lag_2',
     'earnings_news_lag_3',
     'ai_news_lag_1', 'ai_news_lag_2', 'ai_news_lag_3'
 ]
