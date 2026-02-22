@@ -6,3 +6,5 @@ statsmodels>=0.14
 arch>=6.3
 xgboost>=2.0
 matplotlib>=3.7
+optuna>=3.0
+shap>=0.42

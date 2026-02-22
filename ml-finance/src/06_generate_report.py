@@ -96,6 +96,7 @@ def load_metrics_data(ticker: str) -> dict:
     if figures_dir.exists():
         plot_files = ['model_comparison.png', 'strategy_performance.png',
                      'prediction_stability.png', 'feature_analysis.png',
+                     'shap_analysis.png',
                      'next_day_predictions.png', 'next_day_predictions_clf.png']
         for plot_file in plot_files:
             plot_path = figures_dir / plot_file
@@ -288,7 +289,8 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         'model_comparison': 'Porovnanie Modelov & Analýza Chýb (Model Predictions vs Actual Returns)',
         'strategy_performance': 'Výkonnosť Stratégie & Metriky Rizika (Strategy Performance)',
         'prediction_stability': 'Stabilita Predikcií & Zhoda Modelov (Prediction Stability)',
-        'feature_analysis': 'Analýza Atribútov & Korelácie (Feature Importance)'
+        'feature_analysis': 'Analýza Atribútov & Korelácie (Feature Importance)',
+        'shap_analysis': 'SHAP Analýza (Vysvetliteľnosť Modelov)'
     }
 
     for chart_name, chart_path in data['plots'].items():
@@ -734,7 +736,8 @@ def create_html_report(data: dict, output_path: str) -> None:
         'model_comparison': 'Model Comparison & Error Analysis',
         'strategy_performance': 'Strategy Performance Analysis',
         'prediction_stability': 'Prediction Stability & Agreement',
-        'feature_analysis': 'Feature Analysis & Correlations'
+        'feature_analysis': 'Feature Analysis & Correlations',
+        'shap_analysis': 'SHAP Analysis (Model Explainability)'
     }
 
     feature_descriptions_html = """

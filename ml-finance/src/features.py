@@ -69,12 +69,9 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Ensure index is DatetimeIndex for calendar features
     if not isinstance(features_df.index, pd.DatetimeIndex):
-        logging.warning("Converting index to DatetimeIndex for calendar features")
         try:
-            # Try with utc=True first for timezone-aware data
             features_df.index = pd.to_datetime(features_df.index, utc=True)
         except (ValueError, TypeError):
-            # Fallback to regular conversion
             features_df.index = pd.to_datetime(features_df.index)
 
     # Load search data (prefer auto-generated, fallback to manual)
@@ -95,6 +92,8 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
 
     search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
     search_df = search_df.set_index('month')
+    # Shift availability by 7 days to prevent future-peeking (data leak)
+    search_df.index = search_df.index + pd.Timedelta(days=7)
     search_daily = search_df.reindex(features_df.index, method='ffill')
     features_df = features_df.join(search_daily)
 
@@ -116,6 +115,8 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
 
     news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
     news_df = news_df.set_index('month')
+    # Shift availability by 7 days to prevent future-peeking (data leak)
+    news_df.index = news_df.index + pd.Timedelta(days=7)
     news_daily = news_df.reindex(features_df.index, method='ffill')
     features_df = features_df.join(news_daily)
 
@@ -193,8 +194,8 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     features_df['day_of_week'] = features_df.index.dayofweek  # 0=Monday, 4=Friday
     features_df['month'] = features_df.index.month  # 1-12
 
-    # Fill NaN in features with 0
-    features_df = features_df.fillna(0)
+    # Fill NaN safely - do not fill with 0 as it breaks rolling metrics
+    features_df = features_df.ffill().bfill()
 
     # Remove rows with NaN values in essential columns
     initial_rows = len(features_df)

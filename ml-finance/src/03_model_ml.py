@@ -14,7 +14,10 @@ from utils import (
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features, select_features_lasso
-from models import get_ml_models, get_tuned_ml_models, get_classification_models, get_tuned_classification_models
+from models import (
+    get_ml_models, get_tuned_ml_models, get_classification_models, get_tuned_classification_models,
+    get_stacking_regressor, get_stacking_classifier
+)
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -81,21 +84,33 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
         
         predictions = {'date': test_split.index, 'y_true': test_split.values, 'window_id': window_id, 'target': 'log_ret_next'}
 
+        # Shared scaler for stacking (raw, unscaled features)
+        shared_scaler = StandardScaler()
+        X_train_scaled = shared_scaler.fit_transform(train_features)
+        X_test_scaled = shared_scaler.transform(test_features)
+
         # Train regressors
         for model_name, (model, scaler) in reg_models.items():
             logging.info(f"  Training {model_name.upper()} (Regressor)...")
             X_scaled = scaler.fit_transform(train_features)
             model.fit(X_scaled, train_split)
 
-            # Log best params for GridSearchCV-wrapped models
             if hasattr(model, 'best_params_'):
                 logging.info(f"  {model_name.upper()} best params: {model.best_params_}")
 
-            X_test_scaled = scaler.transform(test_features)
-            y_pred = model.predict(X_test_scaled)
+            X_test_sc = scaler.transform(test_features)
+            y_pred = model.predict(X_test_sc)
             logging.info(f"  {model_name.upper()} done (mean pred: {y_pred.mean():.6f})")
 
             predictions[f'y_pred_{model_name}'] = y_pred
+
+        # Stacking Regressor
+        logging.info("  Training STACK (Stacking Regressor)...")
+        stack_reg = get_stacking_regressor()
+        stack_reg.fit(X_train_scaled, train_split)
+        y_pred_stack = stack_reg.predict(X_test_scaled)
+        logging.info(f"  STACK done (mean pred: {y_pred_stack.mean():.6f})")
+        predictions['y_pred_stack'] = y_pred_stack
 
         # Train classifiers
         train_split_class = target_class.loc[train_split.index]
@@ -104,16 +119,22 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
             X_scaled = scaler.fit_transform(train_features)
             model.fit(X_scaled, train_split_class)
 
-            # Log best params for GridSearchCV-wrapped models
             if hasattr(model, 'best_params_'):
                 logging.info(f"  {model_name.upper()} best params: {model.best_params_}")
 
             if hasattr(model, 'predict_proba'):
-                X_test_scaled = scaler.transform(test_features)
-                # Predict probability of class 1 (UP)
-                y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
+                X_test_sc = scaler.transform(test_features)
+                y_pred_proba = model.predict_proba(X_test_sc)[:, 1]
                 logging.info(f"  {model_name.upper()} done (mean prob: {y_pred_proba.mean():.6f})")
                 predictions[f'{model_name}'] = y_pred_proba
+
+        # Stacking Classifier
+        logging.info("  Training CL_STACK (Stacking Classifier)...")
+        stack_clf = get_stacking_classifier()
+        stack_clf.fit(X_train_scaled, train_split_class)
+        y_pred_stack_proba = stack_clf.predict_proba(X_test_scaled)[:, 1]
+        logging.info(f"  CL_STACK done (mean prob: {y_pred_stack_proba.mean():.6f})")
+        predictions['cl_stack'] = y_pred_stack_proba
 
         # Store predictions
         window_results = pd.DataFrame(predictions)
@@ -197,6 +218,22 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
                 f"Confident DA (P>0.55)={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), "
                 f"B&H baseline={bh_acc:.1%}"
             )
+
+    # Stacking Regressor metrics
+    if 'y_pred_stack' in results_df.columns:
+        mask = results_df['y_true'].notna() & results_df['y_pred_stack'].notna()
+        if mask.sum() > 0:
+            stack_metrics = evaluate_regression(results_df.loc[mask, 'y_true'], results_df.loc[mask, 'y_pred_stack'])
+            da = directional_accuracy(results_df.loc[mask, 'y_true'], results_df.loc[mask, 'y_pred_stack'], threshold=SIGNAL_THRESHOLD)
+            logging.info(f"STACK: Raw DA={da['raw_da']:.1%}, Confident DA={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), B&H baseline={bh_acc:.1%}")
+
+    # Stacking Classifier metrics
+    if 'cl_stack' in results_df.columns:
+        mask = results_df['y_true'].notna() & results_df['cl_stack'].notna()
+        if mask.sum() > 0:
+            mapped_preds = results_df.loc[mask, 'cl_stack'] - 0.5
+            da = directional_accuracy(results_df.loc[mask, 'y_true'], mapped_preds, threshold=0.05)
+            logging.info(f"CL_STACK: Raw DA={da['raw_da']:.1%}, Confident DA (P>0.55)={da['confident_da']:.1%} (coverage={da['coverage']:.1%}), B&H baseline={bh_acc:.1%}")
 
     return results_df
 

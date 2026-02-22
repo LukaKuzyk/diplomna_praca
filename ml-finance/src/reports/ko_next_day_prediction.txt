@@ -1,6 +1,6 @@
-Best Model: RF
-Predicted Return: -0.498796
-Raw_DA: 0.896266
+Best Model: GBR
+Predicted Return: -0.423484
+Raw_DA: 0.550000
 Buy_Hold_DA: 0.535109
 Recommendation: HOLD/CASH
 Last Close: 78.89

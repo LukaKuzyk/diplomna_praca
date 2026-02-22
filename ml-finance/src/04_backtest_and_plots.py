@@ -15,6 +15,12 @@ import seaborn as sns
 from pathlib import Path
 from scipy import stats
 
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+
 from utils import (
     set_seed, setup_logging, evaluate_regression,
     directional_accuracy, buy_and_hold_accuracy, ensure_dirs, save_predictions_csv
@@ -548,6 +554,83 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
     logging.info("Saved feature_analysis.png")
 
 
+def create_shap_analysis_plot(output_dir: str, ticker: str) -> None:
+    """Create SHAP analysis plot using XGBoost model on the full dataset."""
+    if not SHAP_AVAILABLE:
+        logging.warning("SHAP not available, skipping SHAP analysis plot")
+        return
+
+    features_path = os.path.join(os.path.dirname(__file__), 'data', f'{ticker.lower()}_features.csv')
+    if not os.path.exists(features_path):
+        logging.warning(f"Features file not found: {features_path}, skipping SHAP plot")
+        return
+
+    from features import create_features, select_features_lasso
+    from sklearn.preprocessing import StandardScaler
+
+    try:
+        from sklearn.ensemble import RandomForestRegressor
+    except ImportError:
+        logging.warning("RandomForest not available, skipping SHAP analysis")
+        return
+
+    raw_data = pd.read_csv(features_path, index_col=0)
+    raw_data.index = pd.to_datetime(raw_data.index, utc=True)
+    feature_data = create_features(raw_data)
+    target = feature_data['log_ret'].shift(-1).dropna()
+    feature_data = feature_data.loc[target.index]
+    selected_features = select_features_lasso(feature_data, target)
+
+    X = feature_data[selected_features]
+    y = target
+
+    scaler = StandardScaler()
+    X_scaled = pd.DataFrame(scaler.fit_transform(X), index=X.index, columns=X.columns)
+
+    model = RandomForestRegressor(n_estimators=100, max_depth=5, 
+                                  max_features='sqrt', random_state=42, n_jobs=-1)
+    model.fit(X_scaled, y)
+
+    # Use TreeExplainer for the Random Forest model (avoids XGBoost 2.0+ base_score array bug)
+
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer(X_scaled)
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14))
+    fig.suptitle(f'{ticker.upper()} SHAP Analysis (RandomForest)', fontsize=16, fontweight='bold')
+
+    # 1. Summary bee swarm plot
+    plt.sca(axes[0, 0])
+    shap.plots.beeswarm(shap_values, max_display=15, show=False)
+    axes[0, 0].set_title('SHAP Summary (Bee Swarm)', fontsize=12)
+
+    # 2. Mean absolute SHAP values (bar)
+    plt.sca(axes[0, 1])
+    shap.plots.bar(shap_values, max_display=15, show=False)
+    axes[0, 1].set_title('Mean |SHAP| Value (Global Importance)', fontsize=12)
+
+    # 3-4. Dependence plots for top-2 features
+    mean_abs_shap = np.abs(shap_values.values).mean(axis=0)
+    top_features_idx = np.argsort(mean_abs_shap)[::-1][:2]
+
+    for i, feat_idx in enumerate(top_features_idx):
+        ax = axes[1, i]
+        feat_name = X_scaled.columns[feat_idx]
+        ax.scatter(X_scaled[feat_name].values, shap_values.values[:, feat_idx],
+                   c=shap_values.values[:, feat_idx], cmap='coolwarm',
+                   alpha=0.5, s=8, edgecolors='none')
+        ax.set_xlabel(feat_name, fontsize=10)
+        ax.set_ylabel(f'SHAP value for {feat_name}', fontsize=10)
+        ax.set_title(f'Dependence Plot: {feat_name}', fontsize=12)
+        ax.axhline(y=0, color='gray', linewidth=0.5, linestyle='--')
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/shap_analysis.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    logging.info("Saved shap_analysis.png")
+
+
 def create_plots(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> None:
     """Create all ML-focused plots"""
     # Ensure output directory exists
@@ -566,6 +649,9 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> Non
 
     # Create feature analysis plot
     create_feature_importance_plot(combined_df, output_dir, ticker)
+
+    # Create SHAP analysis plot
+    create_shap_analysis_plot(output_dir, ticker)
 
     logging.info("All ML analysis plots created successfully")
 

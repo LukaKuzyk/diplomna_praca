@@ -19,7 +19,7 @@ from utils import (
 )
 from config import SIGNAL_THRESHOLD, FEATURE_COLS
 from features import create_features, select_features_lasso
-from models import get_ml_models, MLModelPredictor
+from models import get_ml_models, MLModelPredictor, get_stacking_regressor, get_stacking_classifier
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -146,6 +146,20 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     # Load directional accuracy metrics
     da_metrics = load_model_metrics(ticker)
     bh_acc = da_metrics.pop('_bh_accuracy', buy_and_hold_accuracy(df_features['log_ret'].dropna()))
+
+    # Stacking ensemble predictions
+    from sklearn.preprocessing import StandardScaler as _SS
+    stack_scaler = _SS()
+    X_train_stk = stack_scaler.fit_transform(train_features)
+    X_next_stk = stack_scaler.transform(next_day_features)
+
+    stack_reg = get_stacking_regressor()
+    stack_reg.fit(X_train_stk, train_target)
+    ml_predictions['stack'] = float(stack_reg.predict(X_next_stk)[0])
+
+    stack_clf = get_stacking_classifier()
+    stack_clf.fit(X_train_stk, train_target_class)
+    cl_predictions['cl_stack'] = stack_clf.predict_proba(X_next_stk)[:, 1]
 
     # Pick primary model as the one with highest Raw DA from backtesting
     best_da = 0
