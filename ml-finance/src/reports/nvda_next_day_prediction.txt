@@ -1,0 +1,8 @@
+Best Model: SGD
+Predicted Return: 0.732614
+Raw_DA: 0.537190
+Buy_Hold_DA: 0.537230
+Recommendation: BUY
+Last Close: 189.82
+Last Date: 2026-02-20
+Signal Threshold: 0.002
