@@ -15,15 +15,19 @@ def select_features_lasso(X_train: pd.DataFrame, y_train: pd.Series, max_feature
     from sklearn.linear_model import Lasso
     from sklearn.preprocessing import StandardScaler
 
+    # Drop columns that are completely NaN across all rows in the training set
+    valid_cols = X_train.columns[X_train.notna().any()].tolist()
+    X_train_filtered = X_train[valid_cols]
+
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_train)
+    X_scaled = scaler.fit_transform(X_train_filtered)
 
     # Use a small alpha to get non-zero coefficients for most features
     lasso = Lasso(alpha=0.0001, max_iter=5000, random_state=42)
     lasso.fit(X_scaled, y_train)
 
     # Get absolute coefficients
-    coef_series = pd.Series(np.abs(lasso.coef_), index=X_train.columns)
+    coef_series = pd.Series(np.abs(lasso.coef_), index=X_train_filtered.columns)
     
     # Filter strictly non-zero
     coef_series = coef_series[coef_series > 0]

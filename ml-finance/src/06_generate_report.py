@@ -94,10 +94,14 @@ def load_metrics_data(ticker: str) -> dict:
     # Check for available plots
     figures_dir = Path(f'src/reports/{ticker.lower()}_figures')
     if figures_dir.exists():
-        plot_files = ['model_comparison.png', 'strategy_performance.png',
-                     'prediction_stability.png', 'feature_analysis.png',
-                     'shap_analysis.png',
-                     'next_day_predictions.png', 'next_day_predictions_clf.png']
+        plot_files = [
+            'model_comp_pred_vs_actual.png', 'model_comp_error_dist.png', 'model_comp_rolling_da.png', 'model_comp_signal_corr.png',
+            'strat_perf_equity_curves.png', 'strat_perf_total_returns.png', 'strat_perf_sharpe_ratios.png', 'strat_perf_monthly_returns.png',
+            'pred_stab_volatility.png', 'pred_stab_agreement.png', 'pred_stab_magnitude_dist.png', 'pred_stab_hit_rate.png',
+            'feat_imp_top20_avg.png', 'feat_imp_top10_models.png', 'feat_imp_correlation.png', 'feat_imp_categories.png',
+            'shap_beeswarm.png', 'shap_bar.png', 'shap_dep_1.png', 'shap_dep_2.png',
+            'next_day_predictions.png', 'next_day_predictions_clf.png'
+        ]
         for plot_file in plot_files:
             plot_path = figures_dir / plot_file
             if plot_path.exists():
@@ -286,25 +290,39 @@ def create_pdf_report(data: dict, output_path: str) -> None:
     story.append(Spacer(1, 12))
 
     chart_descriptions = {
-        'model_comparison': 'Porovnanie Modelov & Analýza Chýb (Model Predictions vs Actual Returns)',
-        'strategy_performance': 'Výkonnosť Stratégie & Metriky Rizika (Strategy Performance)',
-        'prediction_stability': 'Stabilita Predikcií & Zhoda Modelov (Prediction Stability)',
-        'feature_analysis': 'Analýza Atribútov & Korelácie (Feature Importance)',
-        'shap_analysis': 'SHAP Analýza (Vysvetliteľnosť Modelov)'
+        'model_comp_pred_vs_actual': ('Porovnanie Modelov: Predikcie vs Reálne Výnosy', 'Zobrazuje presnosť predikcií oproti skutočným výnosom.'),
+        'model_comp_error_dist': ('Distribúcia Chýb Predikcií', 'Histogram chýb (rozdiel medzi predikciou a skutočnosťou).'),
+        'model_comp_rolling_da': ('Kĺzavá Smerová Presnosť', 'Vývoj Directional Accuracy v čase bez prahovania.'),
+        'model_comp_signal_corr': ('Korelácie Signálov Modelov', 'Teplotná mapa korelácie medzi predikciami jednotlivých modelov.'),
+        'strat_perf_equity_curves': ('Výkonnosť Stratégie: Kapitálová Krivka', 'Kumulatívny výnos investičných stratégií na základe ML signálov oproti Buy & Hold.'),
+        'strat_perf_total_returns': ('Celkové Výnosy Stratégií', 'Porovnanie celkového čistého zisku modelov.'),
+        'strat_perf_sharpe_ratios': ('Sharpe Ratio Stratégií', 'Metrika rizika a výnosu pre každú stratégiu.'),
+        'strat_perf_monthly_returns': ('Mesačné Výnosy', 'Teplotná mapa výnosov po mesiacoch.'),
+        'pred_stab_volatility': ('Stabilita Predikcií: Volatilita v Čase', 'Kĺzavá štandardná odchýlka predikcií modelov.'),
+        'pred_stab_agreement': ('Zhoda a Korelácia Medzi Modelmi', 'Miera zhody smerových predikcií medzi rôznymi modelmi.'),
+        'pred_stab_magnitude_dist': ('Distribúcia Sily Predikcií', 'Histogram absolutnej hodnoty predikcií (sebavedomie).'),
+        'pred_stab_hit_rate': ('Presnosť podľa Sily Predikcie', 'Ako presné sú modely, keď predikujú väčší alebo menší pohyb.'),
+        'feat_imp_top20_avg': ('TOP 20 Atribútov', 'Priemerná dôležitosť atribútov naprieč stromovými modelmi.'),
+        'feat_imp_top10_models': ('TOP 10 Atribútov per Model', 'Aké atribúty sú kľúčové pre každý konkrétny model.'),
+        'feat_imp_correlation': ('Korelácia Atribútov s Cieľom', 'Lineárna závislosť medzi atribútom a zajtrajším výnosom.'),
+        'feat_imp_categories': ('Agregovaná Dôležitosť podľa Kategórií', 'Ktoré typy dát sú celkovo najužitočnejšie.'),
+        'shap_beeswarm': ('SHAP: Bee Swarm Súhrn', 'Ako konkrétne hodnoty atribútov ovplyvňujú výslednú predikciu.'),
+        'shap_bar': ('SHAP: Globálna Dôležitosť', 'Priemerná absolútna SHAP hodnota (vplyv) atribútu.'),
+        'shap_dep_1': ('SHAP: Závislosť Top 1', 'Detailný vplyv najsilnejšieho atribútu na predikciu.'),
+        'shap_dep_2': ('SHAP: Závislosť Top 2', 'Detailný vplyv druhého najsilnejšieho atribútu.')
     }
 
-    for chart_name, chart_path in data['plots'].items():
-        if os.path.exists(chart_path):
-            story.append(Paragraph(chart_descriptions.get(chart_name, chart_name), styles['Heading2']))
+    for chart_name, (chart_title, _desc) in chart_descriptions.items():
+        chart_path = data['plots'].get(chart_name)
+        if chart_path and os.path.exists(chart_path):
+            story.append(Paragraph(chart_title, styles['Heading2']))
             story.append(Spacer(1, 12))
-
-            # Add image (resize to fit page)
-            img = Image(chart_path, width=6*inch, height=4.5*inch)
-            story.append(img)
+            try:
+                img = Image(chart_path, width=7.5*inch, height=4.5*inch)
+                story.append(img)
+            except Exception as e:
+                story.append(Paragraph(f"Chyba pri načítaní grafu: {str(e)}", normal_style))
             story.append(Spacer(1, 20))
-
-    # Conclusions
-    story.append(PageBreak())
     story.append(Paragraph("Závery & Odporúčania (Conclusions)", styles['Heading1']))
     story.append(Spacer(1, 12))
 
@@ -732,14 +750,6 @@ def create_html_report(data: dict, output_path: str) -> None:
     """
 
     # Add charts (excluding next_day_predictions which is shown earlier)
-    chart_titles = {
-        'model_comparison': 'Model Comparison & Error Analysis',
-        'strategy_performance': 'Strategy Performance Analysis',
-        'prediction_stability': 'Prediction Stability & Agreement',
-        'feature_analysis': 'Feature Analysis & Correlations',
-        'shap_analysis': 'SHAP Analysis (Model Explainability)'
-    }
-
     feature_descriptions_html = """
             <div style="margin-bottom: 20px; font-size: 0.92em; line-height: 1.6;">
                 <h3 style="margin-bottom: 10px;">Prehľad použitých prediktorov</h3>
@@ -798,17 +808,41 @@ def create_html_report(data: dict, output_path: str) -> None:
             </div>
     """
 
-    for chart_name, chart_path in data['plots'].items():
-        if chart_name not in ['next_day_predictions', 'next_day_predictions_clf'] and os.path.exists(chart_path):
-            # Convert image to base64 for embedding
+    chart_descriptions = {
+        'model_comp_pred_vs_actual': ('Porovnanie Modelov: Predikcie vs Reálne Výnosy', 'Tento graf ukazuje bodový rozptyl (scatter plot) medzi tým, čo modely predikovali a aké boli skutočné výnosy. Ideálna predikcia leží na vyznačenej diagonále.'),
+        'model_comp_error_dist': ('Distribúcia Chýb Predikcií', 'Histogram zobrazuje rozloženie chýb. Užšia krivka okolo nuly znamená, že model robí menšie a stabilnejšie chyby.'),
+        'model_comp_rolling_da': ('Kĺzavá Smerová Presnosť (Rolling DA)', 'Ukazuje vývoj Directional Accuracy v čase bez aplikovania prahu dôvery (len surové signály UP/DOWN). Umožňuje zistiť, kedy modely fungovali horšie a kedy lepšie.'),
+        'model_comp_signal_corr': ('Korelácie Signálov Modelov', 'Teplotná mapa korelácie signálov medzi jednotlivými modelmi. Pomáha zistiť, s akou mierou diverzity prichádzajú rôzne algoritmy.'),
+        'strat_perf_equity_curves': ('Výkonnosť Stratégie: Kapitálová Krivka (Equity Curve)', 'Zobrazuje teoretický sumárny rast kapitálu (kumulatívne výnosy) za predpokladu obchodovania striktne na základe signálov ML modelov oproti stratégii "Buy & Hold".'),
+        'strat_perf_total_returns': ('Celkové Výnosy Stratégií', 'Stĺpcový graf sumarizujúci celkový dosiahnutý zisk pre každý model.'),
+        'strat_perf_sharpe_ratios': ('Sharpe Ratio Stratégií', 'Sharpeovo číslo meria pomer zisku k podstúpenému riziku (volatilite). Vyššia hodnota je lepšia.'),
+        'strat_perf_monthly_returns': ('Mesačné Výnosy', 'Teplotná mapa znázorňujúca výsledky stratégie po kalendárnych mesiacoch.'),
+        'pred_stab_volatility': ('Stabilita Predikcií: Volatilita v Čase', 'Kĺzavá štandardná odchýlka predikcií. Ukazuje, kedy boli modely najviac "nervózne" a menili svoje očakávania najvýraznejšie.'),
+        'pred_stab_agreement': ('Zhoda a Korelácia Medzi Modelmi', 'Vyjadruje percentuálnu zhodu v smerových predikciách medzi jednotlivými algoritmami (keď vygenerujú silný signál).'),
+        'pred_stab_magnitude_dist': ('Distribúcia Sily Predikcií (Dôvera)', 'Histogram absolutných hodnôt predikcií. Čím viac predikcií spadá za vertikálnu čiaru prahu (Signal Threshold), tým častejšie model produkuje sebaistý obchodný signál.'),
+        'pred_stab_hit_rate': ('Presnosť podľa Sily Predikcie', 'Zobrazuje pravdepodobnosť úspechu v závislosti od "sily" predikcie. Všeobecne platí: čím extrémnejšia predikcia, tým vyššia by mala byť presnosť.'),
+        'feat_imp_top20_avg': ('TOP 20 Atribútov (Priemerná Dôležitosť)', 'Agregovaná dôležitosť najlepších 20 premenných naprieč všetkými stromovými modelmi.'),
+        'feat_imp_top10_models': ('TOP 10 Atribútov podľa modelov', 'Rozpad najdôležitejších atribútov na konkrétny prínos pre jednotlivé modely z rodiny stromových (XGB, RF, GBR).'),
+        'feat_imp_correlation': ('Korelácia Atribútov s Cieľovou premennou', 'Lineárna Pearsonova korelácia medzi daným atribútom a logaritmickým výnosom nasledujúceho dňa.'),
+        'feat_imp_categories': ('Agregovaná Dôležitosť podľa Kategórií', 'Sumarizácia, ktoré rodiny metrík (technické, vyhľadávania, objem...) prinášajú modelom najväčší "edge" (rozhodovaciu váhu).'),
+        'shap_beeswarm': ('SHAP: Súhrnný Vplyv Atribútov (Bee Swarm)', 'Vyfarbuje, ako vysoké (červená) alebo nízke (modrá) hodnoty konkrétneho atribútu ovplyvňujú predikciu nasledujúceho dňa naprieč celým datasetom.'),
+        'shap_bar': ('SHAP: Globálna Dôležitosť (Bar Plot)', 'Priemerná absolútna hodnota vplyvu každého atribútu nezávisle na smere pohybu.'),
+        'shap_dep_1': ('SHAP: Závislosť Top 1 Atribútu', 'Detailný pohľad na najdôležitejší atribút. Farbami je znázornená interakcia s iným atribútom z hľadiska SHAP vplyvu.'),
+        'shap_dep_2': ('SHAP: Závislosť Top 2 Atribútu', 'Detailný pohľad na druhý najdôležitejší atribút.'),
+    }
+
+    for chart_name, (title, desc) in chart_descriptions.items():
+        chart_path = data['plots'].get(chart_name)
+        if chart_path and os.path.exists(chart_path):
             with open(chart_path, "rb") as img_file:
                 img_data = base64.b64encode(img_file.read()).decode('utf-8')
 
-            extra_content = feature_descriptions_html if chart_name == 'feature_analysis' else ''
+            extra_content = feature_descriptions_html if chart_name == 'feat_imp_categories' else ''
 
             html_content += f"""
         <div class="section">
-            <h2>📊 {chart_titles.get(chart_name, chart_name.replace('_', ' ').title())}</h2>
+            <h2>📊 {title}</h2>
+            <p style="color: #555; font-size: 0.95em; margin-bottom: 15px; background: #fdfdfd; padding: 10px; border-left: 3px solid #2ecc71;"><em>{desc}</em></p>
             {extra_content}
             <div class="chart-container">
                 <img src="data:image/png;base64,{img_data}" alt="{chart_name}">

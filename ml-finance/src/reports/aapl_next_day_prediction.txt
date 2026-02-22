@@ -1,6 +1,6 @@
-Best Model: GBR
-Predicted Return: -6.894733
-Raw_DA: 0.537190
+Best Model: LINEAR
+Predicted Return: -0.436481
+Raw_DA: 0.557851
 Buy_Hold_DA: 0.532051
 Recommendation: HOLD/CASH
 Last Close: 260.55
