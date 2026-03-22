@@ -283,18 +283,6 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
     plt.savefig(f'{output_dir}/strat_perf_total_returns.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-    # 3. Sharpe Ratios
-    plt.figure(figsize=(10, 6))
-    sharpes = [results['sharpe'] for results in strategy_results.values()]
-    plt.bar(models, sharpes, color=colors[:len(models)], alpha=0.7)
-    plt.axhline(y=0, color='black', linestyle='-', alpha=0.7)
-    plt.ylabel('Sharpe Ratio')
-    plt.title(f'{ticker.upper()} Strategy Sharpe Ratios')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/strat_perf_sharpe_ratios.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
     # 4. Monthly Returns Heatmap
     plt.figure(figsize=(10, 8))
     ax = plt.gca()
@@ -325,151 +313,6 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
     plt.savefig(f'{output_dir}/strat_perf_monthly_returns.png', dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved individual strategy performance plots")
-
-
-def create_prediction_stability_plot(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> None:
-    """Create individual prediction stability plots"""
-    model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') and 'LINEAR' not in col]
-    all_model_cols = [col for col in combined_df.columns if (col.startswith('ml_y_pred_') or col.startswith('ml_cl_')) and 'LINEAR' not in col]
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan']
-
-    # 1. Prediction Variance Over Time
-    plt.figure(figsize=(10, 6))
-    for i, col in enumerate(model_cols):
-        pred_returns = combined_df[col]
-        rolling_std = pred_returns.rolling(window=30).std()
-        plt.plot(rolling_std.index, rolling_std.values, color=colors[i % len(colors)],
-                label=col.replace('ml_y_pred_', '').upper(), linewidth=2)
-
-    plt.xlabel('Date')
-    plt.ylabel('Prediction Volatility (Rolling Std)')
-    plt.title(f'{ticker.upper()} Prediction Stability Over Time')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/pred_stab_volatility.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-    # 2. Model Agreement Matrix
-    plt.figure(figsize=(10, 8))
-    ax = plt.gca()
-    if len(model_cols) > 1:
-        agreement_matrix = pd.DataFrame(index=[col.replace('ml_y_pred_', '').upper() for col in model_cols],
-                                       columns=[col.replace('ml_y_pred_', '').upper() for col in model_cols])
-
-        for i, col1 in enumerate(model_cols):
-            for j, col2 in enumerate(model_cols):
-                pred1 = combined_df[col1]
-                pred2 = combined_df[col2]
-                mask = pred1.notna() & pred2.notna()
-                if mask.sum() > 0:
-                    agreement = ((np.sign(pred1[mask]) == np.sign(pred2[mask])) & (np.abs(pred1[mask]) > SIGNAL_THRESHOLD) & (np.abs(pred2[mask]) > SIGNAL_THRESHOLD)).mean()
-                    agreement_matrix.iloc[i, j] = agreement
-
-        agreement_matrix = agreement_matrix.astype(float)
-        sns.heatmap(agreement_matrix, annot=True, cmap='Blues', vmin=0, vmax=1, ax=ax,
-                   cbar_kws={'label': 'Agreement Rate'})
-        ax.set_title(f'{ticker.upper()} Model Directional Agreement')
-    else:
-        ax.text(0.5, 0.5, 'Need multiple models\nfor agreement analysis', ha='center', va='center', transform=ax.transAxes)
-
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/pred_stab_agreement.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-    # 3. Prediction Magnitude Distribution
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Regressors
-    reg_preds = []
-    for col in model_cols:
-         reg_preds.extend(np.abs(combined_df[col].dropna()).tolist())
-    
-    max_reg = 0.02 # default visual boundary
-    if reg_preds:
-        # Prevent extreme outliers from skewing the histogram by clipping at generous 95th percentile
-        max_reg = min(max(np.percentile(reg_preds, 95), 0.01), 0.1)
-        
-    for i, col in enumerate(model_cols):
-        pred_returns = combined_df[col].dropna()
-        if len(pred_returns) > 0:
-            axes[0].hist(np.clip(np.abs(pred_returns), 0, max_reg), bins=np.linspace(0, max_reg, 30), alpha=0.7, color=colors[i % len(colors)],
-                    label=col.replace('ml_y_pred_', '').upper(), density=True)
-    
-    axes[0].axvline(x=SIGNAL_THRESHOLD, color='black', linestyle='--', alpha=0.7, label='Signal Threshold')
-    axes[0].set_xlabel('Prediction Magnitude (Absolute Expected Return)')
-    axes[0].set_ylabel('Density')
-    axes[0].set_title('Regressors Confidence')
-    if model_cols:
-        axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
-
-    # Classifiers
-    clf_cols = [col for col in combined_df.columns if col.startswith('ml_cl_') and 'LINEAR' not in col]
-    for i, col in enumerate(clf_cols):
-        pred_probs = combined_df[col].dropna()
-        if len(pred_probs) > 0:
-            clf_conf = np.abs(pred_probs - 0.5)
-            axes[1].hist(clf_conf, bins=np.linspace(0, 0.5, 30), alpha=0.7, color=colors[(i+len(model_cols)) % len(colors)],
-                    label=col.replace('ml_cl_', '').upper(), density=True)
-                    
-    axes[1].axvline(x=0.05, color='black', linestyle='--', alpha=0.7, label='Confident (>55% or <45%)')
-    axes[1].set_xlabel('Classifier Confidence (|Prob - 0.5|)')
-    axes[1].set_ylabel('Density')
-    axes[1].set_title('Classifiers Confidence')
-    if clf_cols:
-        axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-    
-    plt.suptitle(f'{ticker.upper()} Prediction Confidence Distribution', fontweight='bold')
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/pred_stab_magnitude_dist.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-    # 4. Hit Rate by Prediction Magnitude
-    plt.figure(figsize=(10, 6))
-    actual_returns = combined_df['ml_y_true']
-    magnitude_bins = [(0, 0.001), (0.001, 0.002), (0.002, 0.005), (0.005, 0.01), (0.01, 0.1)]
-    bin_labels = ['0-0.1%', '0.1-0.2%', '0.2-0.5%', '0.5-1%', '1%+']
-
-    for i, col in enumerate(all_model_cols[:3]):
-        pred_returns = combined_df[col]
-        mask = actual_returns.notna() & pred_returns.notna()
-        if mask.sum() > 0:
-            if col.startswith('ml_cl_'):
-                pred_magnitude = np.abs(pred_returns[mask] - 0.5)
-                pred_sign = np.sign(pred_returns[mask] - 0.5)
-                label_name = col.replace('ml_cl_', 'CL_').upper()
-            else:
-                pred_magnitude = np.abs(pred_returns[mask])
-                pred_sign = np.sign(pred_returns[mask])
-                label_name = col.replace('ml_y_pred_', 'REG_').upper()
-
-            actual_sign = np.sign(actual_returns[mask])
-            hit_rates = []
-            for bin_start, bin_end in magnitude_bins:
-                bin_mask = (pred_magnitude >= bin_start) & (pred_magnitude < bin_end)
-                if bin_mask.sum() > 0:
-                    hit_rate = (actual_sign[bin_mask] == pred_sign[bin_mask]).mean()
-                    hit_rates.append(hit_rate)
-                else:
-                    hit_rates.append(np.nan)
-
-            plt.plot(bin_labels, hit_rates, 'o-', color=colors[i % len(colors)],
-                    label=label_name, linewidth=2, markersize=8)
-
-    plt.axhline(y=0.5, color='black', linestyle='--', alpha=0.7, label='Random')
-    plt.xlabel('Prediction Magnitude')
-    plt.ylabel('Directional Accuracy')
-    plt.title(f'{ticker.upper()} Accuracy by Prediction Confidence')
-    plt.xticks(rotation=45)
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/pred_stab_hit_rate.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    logging.info("Saved individual prediction stability plots")
 
 
 def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> None:
@@ -653,26 +496,6 @@ def create_shap_analysis_plot(output_dir: str, ticker: str) -> None:
     plt.savefig(f'{output_dir}/shap_bar.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-    # 3-4. Dependence plots for top-2 features
-    mean_abs_shap = np.abs(shap_values.values).mean(axis=0)
-    top_features_idx = np.argsort(mean_abs_shap)[::-1][:2]
-
-    for i, feat_idx in enumerate(top_features_idx):
-        plt.figure(figsize=(8, 6))
-        feat_name = X_scaled.columns[feat_idx]
-        plt.scatter(X_scaled[feat_name].values, shap_values.values[:, feat_idx],
-                   c=shap_values.values[:, feat_idx], cmap='coolwarm',
-                   alpha=0.5, s=15, edgecolors='none')
-        plt.xlabel(feat_name, fontsize=12)
-        plt.ylabel(f'SHAP value for {feat_name}', fontsize=12)
-        plt.title(f'Dependence Plot: {feat_name}', fontsize=14, fontweight='bold')
-        plt.axhline(y=0, color='gray', linewidth=0.5, linestyle='--')
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.colorbar(label='SHAP value', ax=plt.gca())
-        plt.savefig(f'{output_dir}/shap_dep_{i+1}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
     logging.info("Saved individual SHAP analysis plots")
 
 
@@ -688,9 +511,6 @@ def create_plots(combined_df: pd.DataFrame, output_dir: str, ticker: str) -> Non
 
     # Create strategy performance analysis
     create_strategy_performance_plot(combined_df, output_dir, ticker)
-
-    # Create prediction stability analysis
-    create_prediction_stability_plot(combined_df, output_dir, ticker)
 
     # Create feature analysis plot
     create_feature_importance_plot(combined_df, output_dir, ticker)

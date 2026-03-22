@@ -96,10 +96,9 @@ def load_metrics_data(ticker: str) -> dict:
     if figures_dir.exists():
         plot_files = [
             'model_comp_pred_vs_actual.png', 'model_comp_error_dist.png', 'model_comp_rolling_da.png', 'model_comp_signal_corr.png',
-            'strat_perf_equity_curves.png', 'strat_perf_total_returns.png', 'strat_perf_sharpe_ratios.png', 'strat_perf_monthly_returns.png',
-            'pred_stab_volatility.png', 'pred_stab_agreement.png', 'pred_stab_magnitude_dist.png', 'pred_stab_hit_rate.png',
+            'strat_perf_equity_curves.png', 'strat_perf_total_returns.png', 'strat_perf_monthly_returns.png',
             'feat_imp_top20_avg.png', 'feat_imp_top10_models.png', 'feat_imp_correlation.png', 'feat_imp_categories.png',
-            'shap_beeswarm.png', 'shap_bar.png', 'shap_dep_1.png', 'shap_dep_2.png',
+            'shap_beeswarm.png', 'shap_bar.png',
             'next_day_predictions.png', 'next_day_predictions_clf.png'
         ]
         for plot_file in plot_files:
@@ -296,20 +295,13 @@ def create_pdf_report(data: dict, output_path: str) -> None:
         'model_comp_signal_corr': ('Korelácie Signálov Modelov', 'Teplotná mapa korelácie medzi predikciami jednotlivých modelov.'),
         'strat_perf_equity_curves': ('Výkonnosť Stratégie: Kapitálová Krivka', 'Kumulatívny výnos investičných stratégií na základe ML signálov oproti Buy & Hold.'),
         'strat_perf_total_returns': ('Celkové Výnosy Stratégií', 'Porovnanie celkového čistého zisku modelov.'),
-        'strat_perf_sharpe_ratios': ('Sharpe Ratio Stratégií', 'Metrika rizika a výnosu pre každú stratégiu.'),
         'strat_perf_monthly_returns': ('Mesačné Výnosy', 'Teplotná mapa výnosov po mesiacoch.'),
-        'pred_stab_volatility': ('Stabilita Predikcií: Volatilita v Čase', 'Kĺzavá štandardná odchýlka predikcií modelov.'),
-        'pred_stab_agreement': ('Zhoda a Korelácia Medzi Modelmi', 'Miera zhody smerových predikcií medzi rôznymi modelmi.'),
-        'pred_stab_magnitude_dist': ('Distribúcia Sily Predikcií', 'Histogram absolutnej hodnoty predikcií (sebavedomie).'),
-        'pred_stab_hit_rate': ('Presnosť podľa Sily Predikcie', 'Ako presné sú modely, keď predikujú väčší alebo menší pohyb.'),
         'feat_imp_top20_avg': ('TOP 20 Atribútov', 'Priemerná dôležitosť atribútov naprieč stromovými modelmi.'),
         'feat_imp_top10_models': ('TOP 10 Atribútov per Model', 'Aké atribúty sú kľúčové pre každý konkrétny model.'),
         'feat_imp_correlation': ('Korelácia Atribútov s Cieľom', 'Lineárna závislosť medzi atribútom a zajtrajším výnosom.'),
         'feat_imp_categories': ('Agregovaná Dôležitosť podľa Kategórií', 'Ktoré typy dát sú celkovo najužitočnejšie.'),
         'shap_beeswarm': ('SHAP: Bee Swarm Súhrn', 'Ako konkrétne hodnoty atribútov ovplyvňujú výslednú predikciu.'),
-        'shap_bar': ('SHAP: Globálna Dôležitosť', 'Priemerná absolútna SHAP hodnota (vplyv) atribútu.'),
-        'shap_dep_1': ('SHAP: Závislosť Top 1', 'Detailný vplyv najsilnejšieho atribútu na predikciu.'),
-        'shap_dep_2': ('SHAP: Závislosť Top 2', 'Detailný vplyv druhého najsilnejšieho atribútu.')
+        'shap_bar': ('SHAP: Globálna Dôležitosť', 'Priemerná absolútna SHAP hodnota (vplyv) atribútu.')
     }
 
     for chart_name, (chart_title, _desc) in chart_descriptions.items():
