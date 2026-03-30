@@ -89,7 +89,7 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
     """Create individual model comparison plots"""
     # Get model columns
     model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') and 'LINEAR' not in col]
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan']
+    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'teal', 'gold']
     actual_returns = combined_df['ml_y_true']
 
     # 1. Predictions vs Actual (scatter plot)
@@ -211,7 +211,7 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
         axis=1).idxmax()
     combined_df = combined_df.loc[first_pred_date:]
     logging.info(f"First prediction date: {first_pred_date}")
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'cyan']
+    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'teal', 'gold']
 
     # Calculate strategy metrics for each model
     strategy_results = {}

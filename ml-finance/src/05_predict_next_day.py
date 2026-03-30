@@ -245,16 +245,20 @@ def create_prediction_plot(result: Dict[str, any], output_dir: str = 'reports/fi
     # Plot next day predictions as prominent dots
     ml_predictions = {k: v for k, v in predictions.items() if k.startswith('ML_')}
 
-    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta']
+    # Sort predictions by predicted close price (highest to lowest)
+    sorted_preds = sorted(ml_predictions.items(), key=lambda item: item[1]['close'], reverse=True)
+
+    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'teal', 'gold']
     markers = ['o', 's', '^', 'D', 'v', 'p', '*']
 
-    for i, (model_name, pred) in enumerate(ml_predictions.items()):
+    for i, (model_name, pred) in enumerate(sorted_preds):
+        clean_name = model_name.replace('ML_', '').replace('ml_', '')
         color = colors[i % len(colors)]
         marker = markers[i % len(markers)]
 
         # Plot prediction point
         ax.scatter(next_date, pred['close'], color=color, marker=marker, s=150, zorder=6,
-                  label=f'{model_name}: ${pred["close"]:.2f}')
+                  label=f'{clean_name}: ${pred["close"]:.2f}')
 
         # Add arrow from current price to prediction
         ax.annotate('', xy=(next_date, pred['close']), xytext=(last_date, result['last_close']),

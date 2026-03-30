@@ -1,6 +1,6 @@
-Best Model: LINEAR
-Predicted Return: 0.186905
-Raw_DA: 0.549587
+Best Model: EXTRATREES
+Predicted Return: -0.457631
+Raw_DA: 0.541322
 Buy_Hold_DA: 0.532051
 Recommendation: HOLD/CASH
 Last Close: 260.55
