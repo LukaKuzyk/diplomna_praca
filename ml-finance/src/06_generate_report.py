@@ -32,7 +32,7 @@ def load_metrics_data(ticker: str) -> dict:
     """Load all metrics and results data"""
     data = {
         'ticker': ticker,
-        'generation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'generation_date': '2026-03-23 12:00:25',
         'metrics': {},
         'next_day_prediction': {},
         'plots': {}

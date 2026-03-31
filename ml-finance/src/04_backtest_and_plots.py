@@ -32,7 +32,7 @@ warnings.filterwarnings('ignore')
 
 # Set plotting style
 plt.style.use('seaborn-v0_8')
-sns.set_palette("husl")
+sns.set_palette("tab20", 20)
 
 
 def load_ml_predictions(ticker: str = 'AAPL') -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -89,7 +89,7 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
     """Create individual model comparison plots"""
     # Get model columns
     model_cols = [col for col in combined_df.columns if col.startswith('ml_y_pred_') and 'LINEAR' not in col]
-    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'teal', 'gold']
+    colors = sns.color_palette("tab20", 20)
     actual_returns = combined_df['ml_y_true']
 
     # 1. Predictions vs Actual (scatter plot)
@@ -211,7 +211,7 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
         axis=1).idxmax()
     combined_df = combined_df.loc[first_pred_date:]
     logging.info(f"First prediction date: {first_pred_date}")
-    colors = ['red', 'orange', 'green', 'purple', 'brown', 'cyan', 'magenta', 'olive', 'teal', 'gold']
+    colors = sns.color_palette("tab20", 20)
 
     # Calculate strategy metrics for each model
     strategy_results = {}
