@@ -190,8 +190,8 @@ def create_model_comparison_plot(combined_df: pd.DataFrame, output_dir: str, tic
                 pred_data[c] = np.sign(pred_data[c])
         
         corr_matrix = pred_data.corr()
-        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0,
-                   square=True, cbar_kws={'shrink': 0.8})
+        sns.heatmap(corr_matrix, annot=True, fmt=".2f", annot_kws={"size": 8},
+                   cmap='coolwarm', center=0, square=True, cbar_kws={'shrink': 0.8})
         plt.title(f'{ticker.upper()} Model Signal Correlations')
         
         labels = [c.replace('ml_cl_', 'CL_').replace('ml_y_pred_', 'REG_').upper() for c in all_model_cols]
@@ -274,11 +274,30 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
     plt.figure(figsize=(10, 6))
     models = list(strategy_results.keys())
     returns = [results['total_return'] for results in strategy_results.values()]
-    plt.bar(models, returns, color=colors[:len(models)], alpha=0.7)
+    bars = plt.bar(models, returns, color=colors[:len(models)], alpha=0.7)
     plt.axhline(y=0, color='black', linestyle='-', alpha=0.7)
+
+    # Add Buy & Hold line
+    bh_total = bh_cumulative.iloc[-1] - 1
+    plt.axhline(y=bh_total, color='black', linestyle='--', linewidth=2, alpha=0.8, label=f'Buy & Hold ({bh_total*100:.1f}%)')
+
+    # Add value annotations on top of each bar
+    for bar in bars:
+        yval = bar.get_height()
+        # Ensure correct placement of text whether it's positive or negative
+        offset = 0.005 if yval >= 0 else -0.015
+        va = 'bottom' if yval >= 0 else 'top'
+        if yval != 0:  # add slight margin above absolute zero
+            plt.text(bar.get_x() + bar.get_width()/2, yval + offset, f'{yval*100:.1f}%',
+                     ha='center', va=va, fontsize=9, fontweight='bold')
+        else:
+            plt.text(bar.get_x() + bar.get_width()/2, 0.01, '0.0%',
+                     ha='center', va='bottom', fontsize=9, fontweight='bold')
+
     plt.ylabel('Total Return')
     plt.title(f'{ticker.upper()} Total Strategy Returns')
     plt.xticks(rotation=45)
+    plt.legend(loc='best')
     plt.tight_layout()
     plt.savefig(f'{output_dir}/strat_perf_total_returns.png', dpi=300, bbox_inches='tight')
     plt.close()
@@ -296,7 +315,8 @@ def create_strategy_performance_plot(combined_df: pd.DataFrame, output_dir: str,
         monthly_df = pd.DataFrame(monthly_data)
         if len(monthly_df) > 0 and len(monthly_df.columns) > 0:
             month_labels = [d.strftime('%Y-%m') for d in monthly_df.index]
-            sns.heatmap(monthly_df.T, cmap='RdYlGn', center=0, ax=ax,
+            sns.heatmap(monthly_df.T, annot=True, fmt=".1%", annot_kws={"size": 8},
+                       cmap='RdYlGn', center=0, ax=ax,
                        cbar_kws={'label': 'Monthly Return'},
                        xticklabels=month_labels, yticklabels=monthly_df.columns)
             ax.set_title(f'{ticker.upper()} Monthly Strategy Returns')
