@@ -1,0 +1,8 @@
+Best Model: ELASTICNET
+Predicted Return: 0.032660
+Raw_DA: 0.560166
+Buy_Hold_DA: 0.536000
+Recommendation: HOLD/CASH
+Last Close: 465.06
+Last Date: 2026-04-02
+Signal Threshold: 0.002

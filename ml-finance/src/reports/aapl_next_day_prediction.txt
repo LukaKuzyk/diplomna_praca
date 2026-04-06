@@ -1,8 +1,8 @@
-Best Model: EXTRATREES
-Predicted Return: -0.457631
-Raw_DA: 0.541322
-Buy_Hold_DA: 0.532051
+Best Model: ELASTICNET
+Predicted Return: 0.055535
+Raw_DA: 0.533058
+Buy_Hold_DA: 0.530449
 Recommendation: HOLD/CASH
-Last Close: 260.55
-Last Date: 2026-02-19
+Last Close: 255.92
+Last Date: 2026-04-02
 Signal Threshold: 0.002

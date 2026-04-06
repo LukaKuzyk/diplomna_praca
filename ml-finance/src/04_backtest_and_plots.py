@@ -395,7 +395,7 @@ def create_feature_importance_plot(combined_df: pd.DataFrame, output_dir: str, t
         except:
             pass
             
-        feature_data = create_features(raw_data)
+        feature_data = create_features(raw_data, ticker=ticker)
         next_day_ret = feature_data['log_ret'].shift(-1)
         for col in importance_df.index:
             if col in feature_data.columns:

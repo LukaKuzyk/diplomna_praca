@@ -1,0 +1,8 @@
+Best Model: CAT
+Predicted Return: -0.002009
+Raw_DA: 0.528926
+Buy_Hold_DA: 0.502404
+Recommendation: HOLD/CASH
+Last Close: 318.00
+Last Date: 2026-04-02
+Signal Threshold: 0.002

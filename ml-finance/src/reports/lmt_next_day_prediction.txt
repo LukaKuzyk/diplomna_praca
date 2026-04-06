@@ -1,0 +1,8 @@
+Best Model: STACK
+Predicted Return: 0.046755
+Raw_DA: 0.561983
+Buy_Hold_DA: 0.530024
+Recommendation: HOLD/CASH
+Last Close: 622.79
+Last Date: 2026-04-02
+Signal Threshold: 0.002

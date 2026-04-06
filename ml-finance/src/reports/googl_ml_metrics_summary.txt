@@ -1,0 +1,114 @@
+ML Models Performance Summary
+========================================
+
+Baseline:
+  Buy_and_Hold_DA: 0.531625
+
+ML_REG_LINEAR_Returns:
+  RMSE: 0.024373
+  MAE: 0.017721
+  Raw_DA: 0.466942
+  Confident_DA: 0.475000
+  Coverage: 0.826446
+  Total_Test_Days: 242.000000
+
+ML_REG_RF_Returns:
+  RMSE: 0.018941
+  MAE: 0.014087
+  Raw_DA: 0.508264
+  Confident_DA: 0.522989
+  Coverage: 0.719008
+  Total_Test_Days: 242.000000
+
+ML_REG_XGB_Returns:
+  RMSE: 0.019329
+  MAE: 0.014382
+  Raw_DA: 0.533058
+  Confident_DA: 0.512821
+  Coverage: 0.805785
+  Total_Test_Days: 242.000000
+
+ML_REG_GBR_Returns:
+  RMSE: 0.019689
+  MAE: 0.014824
+  Raw_DA: 0.491736
+  Confident_DA: 0.486034
+  Coverage: 0.739669
+  Total_Test_Days: 242.000000
+
+ML_REG_LGBM_Returns:
+  RMSE: 0.018595
+  MAE: 0.013662
+  Raw_DA: 0.533058
+  Confident_DA: 0.520958
+  Coverage: 0.690083
+  Total_Test_Days: 242.000000
+
+ML_REG_CAT_Returns:
+  RMSE: 0.018399
+  MAE: 0.013728
+  Raw_DA: 0.516529
+  Confident_DA: 0.517442
+  Coverage: 0.710744
+  Total_Test_Days: 242.000000
+
+ML_REG_ELASTICNET_Returns:
+  RMSE: 0.018084
+  MAE: 0.013414
+  Raw_DA: 0.537190
+  Confident_DA: 0.000000
+  Coverage: 0.000000
+  Total_Test_Days: 242.000000
+
+ML_REG_EXTRATREES_Returns:
+  RMSE: 0.020134
+  MAE: 0.015479
+  Raw_DA: 0.504132
+  Confident_DA: 0.486911
+  Coverage: 0.789256
+  Total_Test_Days: 242.000000
+
+ML_REG_SGD_Returns:
+  RMSE: 0.020809
+  MAE: 0.015986
+  Raw_DA: 0.458678
+  Confident_DA: 0.470874
+  Coverage: 0.851240
+  Total_Test_Days: 242.000000
+
+ML_REG_STACK_Returns:
+  RMSE: 0.018079
+  MAE: 0.013409
+  Raw_DA: 0.537190
+  Confident_DA: 0.000000
+  Coverage: 0.000000
+  Total_Test_Days: 242.000000
+
+ML_CL_LOGREG_Probability:
+  Raw_DA: 0.500000
+  Confident_DA: 0.509524
+  Coverage: 0.867769
+  Mean_Probability: 0.654743
+  Total_Test_Days: 242.000000
+
+ML_CL_RF_Probability:
+  Raw_DA: 0.528926
+  Confident_DA: 0.522293
+  Coverage: 0.648760
+  Mean_Probability: 0.522484
+  Total_Test_Days: 242.000000
+
+ML_CL_XGB_Probability:
+  Raw_DA: 0.504132
+  Confident_DA: 0.492063
+  Coverage: 0.780992
+  Mean_Probability: 0.537327
+  Total_Test_Days: 242.000000
+
+ML_CL_STACK_Probability:
+  Raw_DA: 0.537190
+  Confident_DA: 0.516556
+  Coverage: 0.623967
+  Mean_Probability: 0.566834
+  Total_Test_Days: 242.000000
+

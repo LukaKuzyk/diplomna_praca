@@ -35,7 +35,7 @@ def run_ml_walk_forward(train_window: int, test_window: int, step: int, ticker: 
     df.index = pd.to_datetime(df.index, utc=True)
 
     # Create features
-    df_features = create_features(df)
+    df_features = create_features(df, ticker=ticker)
 
     # Check if all features exist
     missing_features = [col for col in FEATURE_COLS if col not in df_features.columns]

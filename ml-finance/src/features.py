@@ -65,9 +65,9 @@ def calculate_cci(high, low, close, period=20):
     return cci
 
 
-def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create ML features from the dataset"""
-    logging.info("Creating ML features...")
+def create_features(df: pd.DataFrame, ticker: str = 'AAPL') -> pd.DataFrame:
+    """Create ML features from the dataset dynamically by ticker"""
+    logging.info(f"Creating ML features for {ticker}...")
 
     features_df = df.copy()
 
@@ -78,55 +78,51 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         except (ValueError, TypeError):
             features_df.index = pd.to_datetime(features_df.index)
 
-    # Load search data (prefer auto-generated, fallback to manual)
+    # Dynamically load search data
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
-    search_path = os.path.join(data_dir, 'search_data.csv')
-    if not os.path.exists(search_path):
-        search_path = os.path.join(data_dir, 'search_data_01.csv')
-        logging.info("Using manually downloaded search data (search_data_01.csv)")
-
-    if os.path.exists(search_path) and search_path.endswith('_01.csv'):
-        # Manual CSV has 2 metadata rows before the header
-        search_df = pd.read_csv(search_path, skiprows=2, header=0)
-        search_df.columns = ['month', 'iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search']
-    else:
+    search_path = os.path.join(data_dir, f'{ticker}_search_data.csv')
+    
+    search_cols = []
+    if os.path.exists(search_path):
         search_df = pd.read_csv(search_path, index_col=0, parse_dates=True)
         search_df.index.name = 'month'
         search_df = search_df.reset_index()
-
-    search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
-    search_df = search_df.set_index('month')
-    # Shift availability by 7 days to prevent future-peeking (data leak)
-    search_df.index = search_df.index + pd.Timedelta(days=7)
-    search_daily = search_df.reindex(features_df.index, method='ffill')
-    features_df = features_df.join(search_daily)
-
-    # Load news data (prefer auto-generated, fallback to manual)
-    news_path = os.path.join(data_dir, 'news_data.csv')
-    if not os.path.exists(news_path):
-        news_path = os.path.join(data_dir, 'news_data_01.csv')
-        logging.info("Using manually downloaded news data (news_data_01.csv)")
-
-    if os.path.exists(news_path) and news_path.endswith('_01.csv'):
-        news_df = pd.read_csv(news_path, skiprows=2, header=0)
-        news_df.columns = ['month', 'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
-        for col in ['war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']:
-            news_df[col] = news_df[col].replace('<1', 0.5).astype(float)
+        search_df['month'] = pd.to_datetime(search_df['month'], utc=True)
+        search_df = search_df.set_index('month')
+        search_df.index = search_df.index + pd.Timedelta(days=7)
+        search_daily = search_df.reindex(features_df.index, method='ffill')
+        features_df = features_df.join(search_daily)
+        search_cols = search_df.columns.tolist()
     else:
+        logging.warning(f"Google Trends search data not found for {ticker}. Filling with 0.0s.")
+        for i in range(1, 4):
+            col_name = f'kw_{i}_search'
+            features_df[col_name] = 0.0
+            search_cols.append(col_name)
+
+    # Dynamically load news data
+    news_path = os.path.join(data_dir, f'{ticker}_news_data.csv')
+    
+    news_cols = []
+    if os.path.exists(news_path):
         news_df = pd.read_csv(news_path, index_col=0, parse_dates=True)
         news_df.index.name = 'month'
         news_df = news_df.reset_index()
+        news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
+        news_df = news_df.set_index('month')
+        news_df.index = news_df.index + pd.Timedelta(days=7)
+        news_daily = news_df.reindex(features_df.index, method='ffill')
+        features_df = features_df.join(news_daily)
+        news_cols = news_df.columns.tolist()
+    else:
+        logging.warning(f"Google Trends news data not found for {ticker}. Filling with 0.0s.")
+        for i in range(1, 4):
+            col_name = f'kw_{i}_news'
+            features_df[col_name] = 0.0
+            news_cols.append(col_name)
 
-    news_df['month'] = pd.to_datetime(news_df['month'], utc=True)
-    news_df = news_df.set_index('month')
-    # Shift availability by 7 days to prevent future-peeking (data leak)
-    news_df.index = news_df.index + pd.Timedelta(days=7)
-    news_daily = news_df.reindex(features_df.index, method='ffill')
-    features_df = features_df.join(news_daily)
-
-    # Lag features for search and news
-    search_news_cols = ['iphone_search', 'ai_search', 'election_search', 'trump_search', 'stock_search',
-                        'war_news', 'unemployment_news', 'tariffs_news', 'earnings_news', 'ai_news']
+    # Lag features for all dynamically found search and news columns
+    search_news_cols = search_cols + news_cols
     for col in search_news_cols:
         for lag in [1, 2, 3]:
             features_df[f'{col}_lag_{lag}'] = features_df[col].shift(lag)

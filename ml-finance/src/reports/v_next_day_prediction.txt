@@ -1,0 +1,8 @@
+Best Model: LGBM
+Predicted Return: -0.105981
+Raw_DA: 0.528926
+Buy_Hold_DA: 0.534400
+Recommendation: HOLD/CASH
+Last Close: 300.80
+Last Date: 2026-04-02
+Signal Threshold: 0.002

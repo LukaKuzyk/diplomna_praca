@@ -1,8 +1,8 @@
-Best Model: XGB
-Predicted Return: -0.070541
-Raw_DA: 0.543568
-Buy_Hold_DA: 0.514423
+Best Model: LGBM
+Predicted Return: -1.445662
+Raw_DA: 0.541322
+Buy_Hold_DA: 0.514011
 Recommendation: HOLD/CASH
-Last Close: 644.78
-Last Date: 2026-02-19
+Last Close: 574.46
+Last Date: 2026-04-02
 Signal Threshold: 0.002

@@ -315,36 +315,12 @@ def create_pdf_report(data: dict, output_path: str) -> None:
             except Exception as e:
                 story.append(Paragraph(f"Chyba pri načítaní grafu: {str(e)}", normal_style))
             story.append(Spacer(1, 20))
-    story.append(Paragraph("Závery & Odporúčania (Conclusions)", styles['Heading1']))
-    story.append(Spacer(1, 12))
 
-    # Calculate dynamic DA range
-    if data['metrics']:
-        model_metrics = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
-        da_values = [metrics.get('Raw_DA', 0) for metrics in model_metrics.values()]
-        min_da = min(da_values) if da_values else 0
-        max_da = max(da_values) if da_values else 0
-        bh_da = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
-    else:
-        min_da, max_da, bh_da = 0, 0, 0
-
-    conclusion_text = f"""
-    Na základe komplexnej ML analýzy akcie {data['ticker']} je možné vyvodiť nasledujúce závery:
-
-    1. <b>Výkonnosť Modelov:</b> Modely strojového učenia dosahujú raw smerovú presnosť (Raw DA) v rozsahu od {min_da:.1%} do {max_da:.1%}, v porovnaní s Buy &amp; Hold baseline {bh_da:.1%}.
-
-    2. <b>Najlepší Model:</b> {best_model if 'best_model' in locals() else 'XGBoost'} poskytuje najspoľahlivejšie predikcie pre obchodné rozhodnutia.
-
-    3. <b>Riadenie Rizík:</b> Implementovaná stratégia založená na prahu (0.2%) efektívne redukuje falošné signály a zlepšuje kvalitu signálov.
-
-    4. <b>Implementácia:</b> Zvážte implementáciu odporúčanej obchodnej stratégie s primeraným dimenzovaním pozícií a protokolmi riadenia rizík.
-
-    5. <b>Monitorovanie:</b> Pravidelné pretrénovanie modelov a monitorovanie výkonnosti je nevyhnutné pre udržanie presnosti predikcií.
-
+    disclaimer_text = """
     <b>Vylúčenie Zodpovednosti (Disclaimer):</b> Táto analýza slúži len na informačné účely a nemala by byť považovaná za finančné poradenstvo.
     """
 
-    story.append(Paragraph(conclusion_text, normal_style))
+    story.append(Paragraph(disclaimer_text, normal_style))
 
     # Build PDF
     doc.build(story)
@@ -842,26 +818,9 @@ def create_html_report(data: dict, output_path: str) -> None:
         </div>
             """
 
-    # Calculate dynamic DA range for HTML
-    if data['metrics']:
-        model_metrics_concl = {k: v for k, v in data['metrics'].items() if k != 'Baseline'}
-        da_values = [metrics.get('Raw_DA', 0) for metrics in model_metrics_concl.values()]
-        min_da_html = min(da_values) if da_values else 0
-        max_da_html = max(da_values) if da_values else 0
-        bh_da_concl = data['metrics'].get('Baseline', {}).get('Buy_and_Hold_DA', 0)
-    else:
-        min_da_html, max_da_html, bh_da_concl = 0, 0, 0
+    # Conclusions removed per user request
 
-    # Conclusions
     html_content += f"""
-        <div class="section">
-            <h2>🎯 Závery</h2>
-            <ul>
-                <li><strong>Výkonnosť Modelov:</strong> ML modely dosahujú raw smerovú presnosť od {min_da_html:.1%} do {max_da_html:.1%} (Buy &amp; Hold baseline: {bh_da_concl:.1%})</li>
-                <li><strong>Riadenie Rizík:</strong> Stratégia založená na prahu (0.2%) efektívne redukuje falošné signály a zlepšuje kvalitu signálov</li>
-            </ul>
-        </div>
-
         <div class="disclaimer">
             <h3>⚠️ Disclaimer</h3>
             <p>Táto analýza slúži len na informačné účely a nemala by byť považovaná za finančné poradenstvo.

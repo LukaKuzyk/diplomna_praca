@@ -98,7 +98,7 @@ def predict_next_day(ticker: str = 'AAPL') -> Dict[str, any]:
     df.index = pd.to_datetime(df.index, utc=True)
 
     # Create features
-    df_features = create_features(df)
+    df_features = create_features(df, ticker=ticker)
 
     # Check if all features exist
     feature_cols = [col for col in FEATURE_COLS if col in df_features.columns]

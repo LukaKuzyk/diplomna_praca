@@ -1,8 +1,8 @@
-Best Model: SGD
-Predicted Return: 0.732614
+Best Model: ELASTICNET
+Predicted Return: 0.196718
 Raw_DA: 0.537190
-Buy_Hold_DA: 0.537230
-Recommendation: BUY
-Last Close: 189.82
-Last Date: 2026-02-20
+Buy_Hold_DA: 0.535629
+Recommendation: HOLD/CASH
+Last Close: 177.39
+Last Date: 2026-04-02
 Signal Threshold: 0.002

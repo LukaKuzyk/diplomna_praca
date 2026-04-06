@@ -1,8 +1,8 @@
-Best Model: XGB
-Predicted Return: -0.298677
-Raw_DA: 0.871369
-Buy_Hold_DA: 0.534828
+Best Model: ELASTICNET
+Predicted Return: 0.060587
+Raw_DA: 0.564315
+Buy_Hold_DA: 0.533600
 Recommendation: HOLD/CASH
-Last Close: 308.03
-Last Date: 2026-02-19
+Last Close: 294.60
+Last Date: 2026-04-02
 Signal Threshold: 0.002

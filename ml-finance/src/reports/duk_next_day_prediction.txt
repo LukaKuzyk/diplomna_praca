@@ -1,0 +1,8 @@
+Best Model: GBR
+Predicted Return: 0.398632
+Raw_DA: 0.561983
+Buy_Hold_DA: 0.534400
+Recommendation: BUY
+Last Close: 132.22
+Last Date: 2026-04-02
+Signal Threshold: 0.002
