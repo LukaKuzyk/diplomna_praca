@@ -1,8 +1,8 @@
-Best Model: GBR
-Predicted Return: 0.398632
-Raw_DA: 0.561983
+Best Model: ELASTICNET
+Predicted Return: 0.039783
+Raw_DA: 0.553719
 Buy_Hold_DA: 0.534400
-Recommendation: BUY
+Recommendation: HOLD/CASH
 Last Close: 132.22
 Last Date: 2026-04-02
 Signal Threshold: 0.002

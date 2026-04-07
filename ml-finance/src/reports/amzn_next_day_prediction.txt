@@ -1,6 +1,6 @@
-Best Model: RF
-Predicted Return: -0.249485
-Raw_DA: 0.553719
+Best Model: ELASTICNET
+Predicted Return: 0.017303
+Raw_DA: 0.537190
 Buy_Hold_DA: 0.513622
 Recommendation: HOLD/CASH
 Last Close: 209.77

@@ -1,0 +1,32 @@
+Ticker,Dominantná kategória,Top 1 indikátor,Top 2 indikátor,Top 3 indikátor
+AAPL,Price Action,volume_lag_1,volatility,volume_ma_20
+MSFT,Price Action,log_ret_lag_5,log_ret_lag_1,sma_5
+NVDA,Price Action,qqq_change_lag_1,log_ret_lag_1,sma_5
+GOOGL,Price Action,momentum_5,volume_ma_5,volume_lag_5
+META,Price Action,log_ret_lag_30,qqq_change_lag_1,bb_lower
+NFLX,Price Action,volume,qqq_change_lag_2,log_ret_lag_21
+AMZN,Macro,volume_ma_5,snp500_change_lag_3,log_ret_lag_3
+TSLA,Price Action,qqq_change_lag_1,momentum_5,log_ret_lag_3
+HD,Price Action,log_ret_lag_30,momentum_5,snp500_change_lag_3
+PG,Price Action,snp500_change,momentum_5,log_ret_lag_5
+KO,Price Action,snp500_change,momentum_5,volume
+WMT,Price Action,volume,log_ret_lag_21,log_ret_lag_10
+JNJ,Price Action,sma_5,log_ret_lag_5,volume_lag_1
+UNH,Price Action,rolling_skew_20,momentum_10,volume
+PFE,Price Action,log_ret_lag_3,log_ret_lag_14,volatility
+JPM,Technical,log_ret_lag_7,volume_lag_1,sma_5
+V,Price Action,volume_lag_2,log_ret_lag_3,qqq_change_lag_2
+BAC,Technical,rolling_kurt_20,atr_14,volume_ma_5
+CAT,Technical,volatility,volume_ma_5,rolling_kurt_20
+BA,Price Action,bb_lower,atr_14,log_ret_lag_14
+LMT,Technical,snp500_change_lag_3,volume,volatility
+XOM,Price Action,volume_lag_2,momentum_10,sma_5
+CVX,Technical,log_ret_lag_21,atr_14,snp500_change_lag_1
+COP,Technical,snp500_change_lag_1,log_ret_lag_7,atr_14
+LIN,Price Action,atr_14,log_ret_lag_21,log_ret_lag_10
+SHW,Price Action,log_ret_lag_3,momentum_10,volume_ma_5
+PLD,Price Action,volume_lag_1,volume,stoch_k
+O,Technical,log_ret_lag_7,log_ret_lag_1,momentum_10
+NEE,Price Action,snp500_change,log_ret_lag_15,momentum_10
+DUK,Price Action,log_ret_lag_2,snp500_change_lag_2,volume_ma_5
+DIA,Price Action,volatility,log_ret_lag_3,macd

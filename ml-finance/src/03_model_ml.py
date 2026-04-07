@@ -4,6 +4,13 @@ import logging
 import os
 import warnings
 from typing import Dict, List, Tuple, Optional
+
+# Suppress annoying LightGBM warnings
+warnings.filterwarnings('ignore', category=UserWarning)
+import warnings
+warnings.filterwarnings("ignore", message="No further splits with positive gain")
+os.environ["LGBM_WARNING"] = "0"
+
 import numpy as np
 import pandas as pd
 

@@ -1,6 +1,6 @@
-Best Model: STACK
-Predicted Return: 0.046755
-Raw_DA: 0.561983
+Best Model: ELASTICNET
+Predicted Return: 0.048688
+Raw_DA: 0.557851
 Buy_Hold_DA: 0.530024
 Recommendation: HOLD/CASH
 Last Close: 622.79

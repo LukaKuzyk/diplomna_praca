@@ -33,15 +33,17 @@ def download_trends(keywords: list, timeframe: str, category: int = 0,
 
 
 def download_with_retry(keywords, timeframe, category=0, geo='', gprop='',
-                        max_retries=3, delay=60):
-    """Wrapper that retries on 429 (rate-limit) errors."""
+                        max_retries=3, delay=18):
+    """Wrapper that retries on 429 (rate-limit) errors with exponential backoff."""
     for attempt in range(1, max_retries + 1):
         try:
             return download_trends(keywords, timeframe, category, geo, gprop)
         except Exception as e:
             if '429' in str(e) and attempt < max_retries:
-                logging.warning(f"Rate limited. Waiting {delay}s before retry {attempt + 1}/{max_retries}...")
-                time.sleep(delay)
+                # Na prvýkrát 120s, potom aj dlhšie
+                actual_delay = delay * attempt + 36 
+                logging.warning(f"⚠️ Rate limited. Waiting {actual_delay}s before retry {attempt + 1}/{max_retries}...")
+                time.sleep(actual_delay)
             else:
                 raise
 
@@ -73,8 +75,12 @@ def main():
         tickers_to_process = [args.ticker.upper()]
 
     timeframe = build_timeframe(args.years)
+    
+    status_report = {}
 
     for current_ticker in tickers_to_process:
+        status_report[current_ticker] = {"search": "⏳ Not started", "news": "⏳ Not started"}
+        
         search_path = os.path.join(DATA_DIR, f'{current_ticker}_search_data.csv')
         news_path = os.path.join(DATA_DIR, f'{current_ticker}_news_data.csv')
 
@@ -89,48 +95,65 @@ def main():
                     all_fresh = False
                     break
             if all_fresh:
-                logging.info(f"[{current_ticker}] Trends data is fresh (< 24h old). Use --force to re-download.")
+                logging.info(f"🟢 [{current_ticker}] Trends data is fresh (< 24h old). Use --force to re-download.")
+                status_report[current_ticker] = {"search": "✅ Fresh", "news": "✅ Fresh"}
                 continue
 
-        logging.info(f"[{current_ticker}] Downloading Google Trends data for timeframe: {timeframe}")
+        logging.info(f"\n🚀 [{current_ticker}] Downloading Google Trends data for timeframe: {timeframe}")
 
         config = TICKER_CONFIG[current_ticker]
         search_keywords = config["search_kw"]
         news_keywords = config["news_kw"]
         
         # Download search trends (Web Search)
-        logging.info(f"[{current_ticker}] Downloading search trends: {search_keywords}")
+        logging.info(f"🔍 [{current_ticker}] Downloading search trends: {search_keywords}")
         try:
             search_df = download_with_retry(search_keywords, timeframe)
             # Map dynamic columns to generic kw_1_search, kw_2_search, etc so features.py can process them without hardcoded names
             search_df.columns = [f'kw_{i+1}_search' for i in range(len(search_keywords))]
             search_df.index.name = 'month'
             search_df.to_csv(search_path)
-            logging.info(f"[{current_ticker}] Saved search trends to {search_path} ({len(search_df)} rows)")
+            logging.info(f"✅ [{current_ticker}] Saved search trends to {search_path} ({len(search_df)} rows)")
+            status_report[current_ticker]["search"] = "✅ Success"
         except Exception as e:
-            logging.error(f"[{current_ticker}] Failed to download search trends: {e}")
+            logging.error(f"❌ [{current_ticker}] Failed to download search trends: {e}")
+            status_report[current_ticker]["search"] = "❌ Failed"
 
         # Small random delay between requests to avoid rate-limiting
         sleep_time = random.randint(15, 25)
-        logging.info(f"[{current_ticker}] Sleeping {sleep_time}s to avoid Google rate limit...")
+        logging.info(f"😴 [{current_ticker}] Sleeping {sleep_time}s to avoid Google rate limit...")
         time.sleep(sleep_time)
 
         # Download news trends (Google News, gprop='news')
-        logging.info(f"[{current_ticker}] Downloading news trends: {news_keywords}")
+        logging.info(f"📰 [{current_ticker}] Downloading news trends: {news_keywords}")
         try:
             news_df = download_with_retry(news_keywords, timeframe, gprop='news')
             news_df.columns = [f'kw_{i+1}_news' for i in range(len(news_keywords))]
             news_df.index.name = 'month'
             news_df.to_csv(news_path)
-            logging.info(f"[{current_ticker}] Saved news trends to {news_path} ({len(news_df)} rows)")
+            logging.info(f"✅ [{current_ticker}] Saved news trends to {news_path} ({len(news_df)} rows)")
+            status_report[current_ticker]["news"] = "✅ Success"
             
             sleep_time_end = random.randint(20, 35)
-            logging.info(f"[{current_ticker}] Done with {current_ticker}. Sleeping {sleep_time_end}s before next ticker...")
+            logging.info(f"😴 [{current_ticker}] Done with {current_ticker}. Sleeping {sleep_time_end}s before next ticker...")
             time.sleep(sleep_time_end)
         except Exception as e:
-            logging.error(f"[{current_ticker}] Failed to download news trends: {e}")
+            logging.error(f"❌ [{current_ticker}] Failed to download news trends: {e}")
+            status_report[current_ticker]["news"] = "❌ Failed"
 
-    logging.info("Google Trends download completed successfully!")
+    logging.info("\n🎉 Google Trends download phase completed!")
+    
+    # Save and print status report
+    report_path = os.path.join(DATA_DIR, 'trends_download_status.txt')
+    with open(report_path, 'w') as f:
+        f.write("Google Trends Download Status\n")
+        f.write("=============================\n")
+        for ticker, status in status_report.items():
+            report_line = f"[{ticker}] Search: {status['search']} | News: {status['news']}\n"
+            f.write(report_line)
+            print(report_line.strip())
+    
+    logging.info(f"📄 Detailed status report saved to: {report_path}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-Best Model: CAT
-Predicted Return: 0.087143
-Raw_DA: 0.543568
+Best Model: LGBM
+Predicted Return: 0.008130
+Raw_DA: 0.522822
 Buy_Hold_DA: 0.532258
 Recommendation: HOLD/CASH
 Last Close: 76.72

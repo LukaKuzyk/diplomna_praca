@@ -167,7 +167,7 @@ def get_ml_models(random_state: int = DEFAULT_SEED) -> Dict[str, tuple]:
 
     # LightGBM (if available)
     if LGBM_AVAILABLE:
-        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state), StandardScaler())
+        models['lgbm'] = (LGBMRegressor(n_estimators=100, max_depth=5, learning_rate=0.05, random_state=random_state, verbose=-1), StandardScaler())
 
     # CatBoost (if available)
     if CATBOOST_AVAILABLE:

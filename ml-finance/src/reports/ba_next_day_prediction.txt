@@ -1,8 +1,8 @@
-Best Model: GBR
-Predicted Return: 0.641896
-Raw_DA: 0.553719
+Best Model: SGD
+Predicted Return: 0.145539
+Raw_DA: 0.574380
 Buy_Hold_DA: 0.499600
-Recommendation: BUY
+Recommendation: HOLD/CASH
 Last Close: 208.22
 Last Date: 2026-04-02
 Signal Threshold: 0.002

@@ -1,6 +1,6 @@
-Best Model: SGD
-Predicted Return: 0.432707
-Raw_DA: 0.549587
+Best Model: LINEAR
+Predicted Return: 1.826674
+Raw_DA: 0.561983
 Buy_Hold_DA: 0.510400
 Recommendation: BUY
 Last Close: 98.66

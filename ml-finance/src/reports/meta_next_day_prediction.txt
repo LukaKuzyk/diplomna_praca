@@ -1,6 +1,6 @@
-Best Model: LGBM
-Predicted Return: -1.445662
-Raw_DA: 0.541322
+Best Model: RF
+Predicted Return: -1.542718
+Raw_DA: 0.520661
 Buy_Hold_DA: 0.514011
 Recommendation: HOLD/CASH
 Last Close: 574.46

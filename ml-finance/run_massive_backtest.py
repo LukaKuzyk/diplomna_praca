@@ -11,13 +11,30 @@ import argparse
 import logging
 import json
 import pandas as pd
+import datetime
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from config_tickers import TICKER_CONFIG
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def setup_logging():
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    log_dir = os.path.join(BASE_DIR, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file = os.path.join(log_dir, f'massive_backtest_{timestamp}.log')
+    
+    # Configure logging to write to both Terminal AND a Log file
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    logging.info(f"📂 Všetky logy z tohto behu sa ukladajú aj do súboru: {log_file}")
 
 def run_command(command, description):
     """Run a command and capture output to check for success"""
@@ -50,23 +67,30 @@ def main():
     parser.add_argument('--skip-trends', action='store_true', help='Skip Google Trends download')
     parser.add_argument('--skip-training', action='store_true', help='Skip ML model training')
     parser.add_argument('--only', type=str, help='Run only this ticker (e.g. AAPL)')
+    parser.add_argument('--only-trends', action='store_true', help='LBA: Only download Google Trends data for all 31 firms and quit')
     args = parser.parse_args()
 
-    # Step 0: Download ALL trends at once to save time
-    if not args.skip_trends:
-        if args.only:
-            cmd = f"python {os.path.join(BASE_DIR, 'src', 'download_trends.py')} --ticker {args.only}"
-        else:
-            cmd = f"python {os.path.join(BASE_DIR, 'src', 'download_trends.py')} --ticker ALL"
-        run_command(cmd, "Google Trends Download (ALL)")
+    # If the user only wants to download trends
+    if args.only_trends:
+        logging.info("\n🏃‍♂️ Spúšťam iba samotné zberanie dát z Google Trends! (Po jednej firme)\n")
 
     tickers_to_run = [args.only.upper()] if args.only else list(TICKER_CONFIG.keys())
-
+    total_tickers = len(tickers_to_run)
     results = []
 
-    for ticker in tickers_to_run:
-        logging.info(f"\n{'='*60}\n🚀 STARTING PIPELINE FOR {ticker} ({TICKER_CONFIG[ticker]['name']})\n{'='*60}")
+    for i, ticker in enumerate(tickers_to_run, 1):
+        logging.info(f"\n{'='*60}\n🚀 [{i}/{total_tickers}] STARTING PIPELINE FOR {ticker} ({TICKER_CONFIG[ticker]['name']})\n{'='*60}")
         
+        # 0. Download Trends (per company isolated block)
+        if not args.skip_trends:
+            cmd0 = f"python {os.path.join(BASE_DIR, 'src', 'download_trends.py')} --ticker {ticker}"
+            if not run_command(cmd0, f"Google Trends Download {ticker}"):
+                logging.error(f"❌ [Google Trends] Failed to download trends for {ticker}. Check logs.")
+                # We can choose to continue or break here. Let's continue since features.py uses 0.0 fallback.
+        
+        if args.only_trends:
+            continue
+            
         # 1. Download Data
         cmd1 = f"python {os.path.join(BASE_DIR, 'src', '01_download_data.py')} --ticker {ticker}"
         if not run_command(cmd1, f"Data Download {ticker}"):

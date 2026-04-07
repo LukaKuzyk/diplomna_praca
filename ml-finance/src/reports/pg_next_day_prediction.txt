@@ -1,8 +1,8 @@
-Best Model: LGBM
-Predicted Return: 0.378164
-Raw_DA: 0.531120
+Best Model: EXTRATREES
+Predicted Return: 0.160127
+Raw_DA: 0.560166
 Buy_Hold_DA: 0.533280
-Recommendation: BUY
+Recommendation: HOLD/CASH
 Last Close: 143.12
 Last Date: 2026-04-02
 Signal Threshold: 0.002

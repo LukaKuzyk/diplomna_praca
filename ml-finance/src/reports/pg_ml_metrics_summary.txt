@@ -5,51 +5,51 @@ Baseline:
   Buy_and_Hold_DA: 0.533280
 
 ML_REG_LINEAR_Returns:
-  RMSE: 0.025967
-  MAE: 0.015392
-  Raw_DA: 0.506224
-  Confident_DA: 0.508772
-  Coverage: 0.473029
+  RMSE: 0.011572
+  MAE: 0.008989
+  Raw_DA: 0.493776
+  Confident_DA: 0.491071
+  Coverage: 0.464730
   Total_Test_Days: 242.000000
 
 ML_REG_RF_Returns:
-  RMSE: 0.011490
-  MAE: 0.008942
-  Raw_DA: 0.477178
-  Confident_DA: 0.479167
-  Coverage: 0.398340
+  RMSE: 0.011523
+  MAE: 0.008943
+  Raw_DA: 0.497925
+  Confident_DA: 0.473684
+  Coverage: 0.394191
   Total_Test_Days: 242.000000
 
 ML_REG_XGB_Returns:
-  RMSE: 0.011685
-  MAE: 0.009081
-  Raw_DA: 0.518672
-  Confident_DA: 0.536364
-  Coverage: 0.456432
+  RMSE: 0.011509
+  MAE: 0.008959
+  Raw_DA: 0.506224
+  Confident_DA: 0.520661
+  Coverage: 0.502075
   Total_Test_Days: 242.000000
 
 ML_REG_GBR_Returns:
-  RMSE: 0.011549
-  MAE: 0.009008
-  Raw_DA: 0.518672
-  Confident_DA: 0.535354
-  Coverage: 0.410788
+  RMSE: 0.011478
+  MAE: 0.008886
+  Raw_DA: 0.539419
+  Confident_DA: 0.583333
+  Coverage: 0.398340
   Total_Test_Days: 242.000000
 
 ML_REG_LGBM_Returns:
-  RMSE: 0.011697
-  MAE: 0.009143
-  Raw_DA: 0.531120
-  Confident_DA: 0.544776
-  Coverage: 0.556017
+  RMSE: 0.011581
+  MAE: 0.009123
+  Raw_DA: 0.514523
+  Confident_DA: 0.551181
+  Coverage: 0.526971
   Total_Test_Days: 242.000000
 
 ML_REG_CAT_Returns:
-  RMSE: 0.011318
-  MAE: 0.008795
-  Raw_DA: 0.514523
-  Confident_DA: 0.600000
-  Coverage: 0.228216
+  RMSE: 0.011264
+  MAE: 0.008752
+  Raw_DA: 0.518672
+  Confident_DA: 0.620000
+  Coverage: 0.207469
   Total_Test_Days: 242.000000
 
 ML_REG_ELASTICNET_Returns:
@@ -61,54 +61,54 @@ ML_REG_ELASTICNET_Returns:
   Total_Test_Days: 242.000000
 
 ML_REG_EXTRATREES_Returns:
-  RMSE: 0.011159
-  MAE: 0.008670
-  Raw_DA: 0.526971
-  Confident_DA: 0.622951
-  Coverage: 0.253112
+  RMSE: 0.011168
+  MAE: 0.008686
+  Raw_DA: 0.560166
+  Confident_DA: 0.586207
+  Coverage: 0.240664
   Total_Test_Days: 242.000000
 
 ML_REG_SGD_Returns:
-  RMSE: 0.023643
-  MAE: 0.014480
-  Raw_DA: 0.510373
-  Confident_DA: 0.513514
-  Coverage: 0.460581
+  RMSE: 0.011541
+  MAE: 0.008967
+  Raw_DA: 0.518672
+  Confident_DA: 0.531250
+  Coverage: 0.398340
   Total_Test_Days: 242.000000
 
 ML_REG_STACK_Returns:
   RMSE: 0.011288
   MAE: 0.008795
-  Raw_DA: 0.502075
+  Raw_DA: 0.493776
   Confident_DA: 0.000000
   Coverage: 0.000000
   Total_Test_Days: 242.000000
 
 ML_CL_LOGREG_Probability:
-  Raw_DA: 0.543568
-  Confident_DA: 0.528169
-  Coverage: 0.589212
-  Mean_Probability: 0.580581
+  Raw_DA: 0.510373
+  Confident_DA: 0.524823
+  Coverage: 0.585062
+  Mean_Probability: 0.492336
   Total_Test_Days: 242.000000
 
 ML_CL_RF_Probability:
   Raw_DA: 0.485477
-  Confident_DA: 0.500000
+  Confident_DA: 0.527027
   Coverage: 0.614108
-  Mean_Probability: 0.536494
+  Mean_Probability: 0.530141
   Total_Test_Days: 242.000000
 
 ML_CL_XGB_Probability:
-  Raw_DA: 0.489627
-  Confident_DA: 0.491228
-  Coverage: 0.709544
-  Mean_Probability: 0.538809
+  Raw_DA: 0.502075
+  Confident_DA: 0.521472
+  Coverage: 0.676349
+  Mean_Probability: 0.533325
   Total_Test_Days: 242.000000
 
 ML_CL_STACK_Probability:
   Raw_DA: 0.481328
-  Confident_DA: 0.511905
-  Coverage: 0.348548
-  Mean_Probability: 0.546940
+  Confident_DA: 0.537313
+  Coverage: 0.278008
+  Mean_Probability: 0.535598
   Total_Test_Days: 242.000000
 

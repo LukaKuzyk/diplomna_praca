@@ -1,0 +1,32 @@
+Ticker,Sektor,Najlepší Model,B&H Výnos (%),ML Výnos (%),Alpha voči B&H (%),DA (%)
+AAPL,Information Technology,ELASTICNET,27.16,27.16,0.0,53.31
+MSFT,Information Technology,RF,-2.44,10.08,12.52,47.11
+NVDA,Information Technology,XGB,58.14,59.52,1.38,52.48
+GOOGL,Communication Services,STACK,89.88,95.01,5.14,54.13
+META,Communication Services,LGBM,10.49,21.61,11.11,51.24
+NFLX,Communication Services,CL_XGB,1.06,35.87,34.81,59.92
+AMZN,Consumer Discretionary,CL_RF,16.8,48.13,31.33,56.61
+TSLA,Consumer Discretionary,LINEAR,41.9,54.16,12.26,57.85
+HD,Consumer Discretionary,LGBM,-6.88,4.88,11.76,51.87
+PG,Consumer Staples,EXTRATREES,-12.72,9.65,22.37,56.02
+KO,Consumer Staples,CAT,9.86,13.25,3.39,52.28
+WMT,Consumer Staples,GBR,35.05,37.5,2.45,52.7
+JNJ,Health Care,ELASTICNET,62.62,62.62,0.0,56.2
+UNH,Health Care,CL_XGB,-51.15,12.22,63.37,53.31
+PFE,Health Care,CL_LOGREG,35.36,35.43,0.07,51.27
+JPM,Financials,GBR,28.17,40.72,12.55,56.43
+V,Financials,GBR,-9.76,5.19,14.95,51.24
+BAC,Financials,LINEAR,32.91,34.0,1.09,50.42
+CAT,Industrials,CL_STACK,147.79,152.55,4.76,55.37
+BA,Industrials,CAT,33.89,73.43,39.54,57.02
+LMT,Industrials,CL_RF,36.25,53.19,16.94,55.79
+XOM,Energy,LGBM,61.21,65.15,3.94,54.77
+CVX,Energy,ELASTICNET,54.54,54.54,0.0,56.61
+COP,Energy,CL_RF,57.48,71.07,13.59,56.2
+LIN,Materials,ELASTICNET,12.95,12.95,0.0,52.89
+SHW,Materials,SGD,-4.76,24.88,29.64,50.83
+PLD,Real Estate,LGBM,40.55,39.92,-0.63,55.6
+O,Real Estate,XGB,15.3,17.73,2.44,51.24
+NEE,Utilities,CL_STACK,41.77,50.23,8.46,56.25
+DUK,Utilities,SGD,13.62,19.16,5.54,55.37
+DIA,Benchmark,RF,16.99,19.11,2.12,55.6

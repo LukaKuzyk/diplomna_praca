@@ -1,5 +1,5 @@
-Best Model: XGB
-Predicted Return: 0.004368
+Best Model: ELASTICNET
+Predicted Return: 0.018483
 Raw_DA: 0.524793
 Buy_Hold_DA: 0.520096
 Recommendation: HOLD/CASH

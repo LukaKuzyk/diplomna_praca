@@ -1,6 +1,6 @@
 Best Model: LGBM
-Predicted Return: -0.158846
-Raw_DA: 0.547718
+Predicted Return: 0.060975
+Raw_DA: 0.556017
 Buy_Hold_DA: 0.524880
 Recommendation: HOLD/CASH
 Last Close: 133.77

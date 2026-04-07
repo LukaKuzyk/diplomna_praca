@@ -1,6 +1,6 @@
-Best Model: CAT
-Predicted Return: -0.002009
-Raw_DA: 0.528926
+Best Model: SGD
+Predicted Return: 0.106813
+Raw_DA: 0.508264
 Buy_Hold_DA: 0.502404
 Recommendation: HOLD/CASH
 Last Close: 318.00

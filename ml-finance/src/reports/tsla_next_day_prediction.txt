@@ -1,6 +1,6 @@
 Best Model: LINEAR
-Predicted Return: 0.519068
-Raw_DA: 0.599174
+Predicted Return: 0.625688
+Raw_DA: 0.578512
 Buy_Hold_DA: 0.516800
 Recommendation: BUY
 Last Close: 360.59

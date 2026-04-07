@@ -1,5 +1,5 @@
-Best Model: GBR
-Predicted Return: -0.255007
+Best Model: ELASTICNET
+Predicted Return: 0.089688
 Raw_DA: 0.533058
 Buy_Hold_DA: 0.516000
 Recommendation: HOLD/CASH
